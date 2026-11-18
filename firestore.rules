@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// 数学4択クイズ用 Firestore セキュリティルール
+// Firebase コンソール → Firestore Database → ルール に、この内容を貼り付けて「公開」してください。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isTeacher() {
+      return signedIn() && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+
+    // 先生の登録：Firebase コンソールから手で追加する（アプリからは書き込めない）
+    match /teachers/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    function validPost(d) {
+      return d.keys().hasOnly(['authorUid', 'authorName', 'official', 'category', 'question',
+                               'choices', 'answer', 'explanation', 'at', 'counts'])
+        && d.authorName is string && d.authorName.size() > 0 && d.authorName.size() <= 20
+        && d.category is string && d.category.size() <= 20
+        && d.question is string && d.question.size() > 0 && d.question.size() <= 600
+        && d.choices is list && d.choices.size() == 4
+        && d.choices[0] is string && d.choices[1] is string && d.choices[2] is string && d.choices[3] is string
+        && d.answer is int && d.answer >= 1 && d.answer <= 4
+        && d.explanation is string && d.explanation.size() <= 1000
+        && d.at == request.time
+        && d.counts == {'1': 0, '2': 0, '3': 0, '4': 0, 'total': 0};
+    }
+
+    // 回答の集計：1人1問につき1回だけ、選んだ番号と合計を1ずつ増やせる
+    function countsOnly(postId) {
+      let aPath = /databases/$(database)/documents/answers/$(postId + '_' + request.auth.uid);
+      let before = resource.data.counts;
+      let after = request.resource.data.counts;
+      let c = string(getAfter(aPath).data.choice);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counts'])
+        && !exists(aPath) && existsAfter(aPath)
+        && after.total == before.total + 1
+        && after[c] == before[c] + 1
+        && after.diff(before).affectedKeys().hasOnly(['total', c]);
+    }
+
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.official == isTeacher()
+        && validPost(request.resource.data);
+      allow update: if signedIn() && countsOnly(postId);
+      allow delete: if signedIn() && (resource.data.authorUid == request.auth.uid || isTeacher());
+    }
+
+    // 各自の「最初の回答」：作成のみ。変更・削除はできない
+    match /answers/{answerId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'postId', 'choice'])
+        && request.resource.data.uid == request.auth.uid
+        && answerId == request.resource.data.postId + '_' + request.auth.uid
+        && request.resource.data.choice is int
+        && request.resource.data.choice >= 1 && request.resource.data.choice <= 4
+        && exists(/databases/$(database)/documents/posts/$(request.resource.data.postId));
+      allow update, delete: if false;
+    }
+
+    // 個人の成績：本人だけが読み書きできる
+    match /stats/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+  }
+}

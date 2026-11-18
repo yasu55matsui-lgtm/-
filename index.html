@@ -4,231 +4,186 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-title" content="数学クイズ">
 <title>数学4択クイズ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
 <style>
+  /* Layout: YouTubeのコミュニティ投稿風の1カラムフィード + 上部タブ（問題 / 成績 / 投稿） */
   :root {
-    --bg: #ffffff; --fg: #0f0f0f; --sub: #606060; --line: #d9d9d9;
-    --box: #ececec; --chip: #f2f2f2; --chip-on: #0f0f0f; --chip-on-fg: #fff;
-    --ok: #2e7d32; --ok-bg: #e8f5e9; --ng: #c62828; --ng-bg: #ffebee;
+    --bg: #ffffff; --fg: #0f0f0f; --sub: #5f6368; --line: #dadce0;
+    --box: #eef0f2; --chip: #f1f3f4; --chip-on: #0f0f0f; --chip-on-fg: #ffffff;
+    --accent: #1a73e8; --fill: #e3e7eb;
+    --ok: #1e7b34; --ok-bg: #e6f4ea; --ok-fill: #ccebd5;
+    --ng: #c5221f; --ng-bg: #fce8e6;
+    --font: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f0f0f; --fg: #f1f1f1; --sub: #aaaaaa; --line: #3a3a3a;
-      --box: #272727; --chip: #272727; --chip-on: #f1f1f1; --chip-on-fg: #0f0f0f;
-      --ok: #66bb6a; --ok-bg: #1b2e1c; --ng: #ef5350; --ng-bg: #3a1d1d;
+    :root:not([data-theme="light"]) {
+      --bg: #0f0f0f; --fg: #f1f1f1; --sub: #a8adb3; --line: #3a3c3f;
+      --box: #232527; --chip: #26282a; --chip-on: #f1f1f1; --chip-on-fg: #0f0f0f;
+      --accent: #8ab4f8; --fill: #2c2f33;
+      --ok: #6dd58c; --ok-bg: #16281b; --ok-fill: #1f4128;
+      --ng: #f28b82; --ng-bg: #3a1f1d; color-scheme: dark;
     }
   }
+  :root[data-theme="dark"] {
+    --bg: #0f0f0f; --fg: #f1f1f1; --sub: #a8adb3; --line: #3a3c3f;
+    --box: #232527; --chip: #26282a; --chip-on: #f1f1f1; --chip-on-fg: #0f0f0f;
+    --accent: #8ab4f8; --fill: #2c2f33;
+    --ok: #6dd58c; --ok-bg: #16281b; --ok-fill: #1f4128;
+    --ng: #f28b82; --ng-bg: #3a1f1d; color-scheme: dark;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
-    font-size: 16px; line-height: 1.6;
-  }
-  header {
-    position: sticky; top: 0; z-index: 10; background: var(--bg);
-    border-bottom: 1px solid var(--line); padding: env(safe-area-inset-top) 0 0;
-  }
-  .bar { max-width: 720px; margin: 0 auto; padding: 10px 16px 6px; display: flex; align-items: center; gap: 12px; }
-  .bar h1 { font-size: 20px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .score { font-size: 13px; color: var(--sub); text-align: right; white-space: nowrap; }
-  .score b { color: var(--fg); font-size: 16px; }
-  .chips { max-width: 720px; margin: 0 auto; padding: 4px 16px 10px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.65; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  .wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .bar { display: flex; align-items: center; gap: 12px; padding-block: 12px 4px; }
+  .bar h1 { font-size: 20px; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini { font-size: 13px; color: var(--sub); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mini b { color: var(--fg); font-size: 15px; }
+  .tabs { display: flex; gap: 4px; }
+  .tab { border: 0; background: none; font: inherit; font-size: 15px; color: var(--sub); padding: 10px 14px; cursor: pointer; border-bottom: 3px solid transparent; }
+  .tab.on { color: var(--fg); font-weight: 700; border-bottom-color: var(--fg); }
+  .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-block: 12px 4px; }
   .chips::-webkit-scrollbar { display: none; }
-  .chip {
-    border: 0; background: var(--chip); color: var(--fg); border-radius: 8px;
-    padding: 6px 12px; font-size: 14px; white-space: nowrap; cursor: pointer; font-family: inherit;
-  }
+  .chip { border: 0; background: var(--chip); color: var(--fg); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; }
   .chip.on { background: var(--chip-on); color: var(--chip-on-fg); }
-  main { max-width: 720px; margin: 0 auto; padding: 0 16px 80px; }
-  .post { padding: 18px 0 8px; border-bottom: 1px solid var(--line); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { padding-block: 0 96px; }
+  .notice { background: var(--box); padding: 10px 14px; font-size: 14px; margin-top: 12px; border-radius: 8px; }
+  .post { padding-block: 20px 8px; border-bottom: 1px solid var(--line); }
   .head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-  .avatar {
-    width: 40px; height: 40px; border-radius: 50%; flex: none;
-    background: #1e88e5; color: #fff; display: grid; place-items: center; font-size: 20px;
-  }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 17px; }
+  .who { flex: 1; min-width: 0; }
   .name { font-weight: 700; font-size: 14px; }
+  .name .tag { font-weight: 500; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
   .meta { color: var(--sub); font-size: 13px; }
-  .qtitle { margin: 0 0 2px; }
-  .qtext { white-space: pre-wrap; margin: 0 0 12px; }
-  .choice {
-    display: flex; align-items: center; width: 100%; min-height: 48px; margin: 0 0 10px;
-    padding: 10px 16px; border: 1px solid var(--line); border-radius: 2px;
-    background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer;
-  }
-  .choice:not(:disabled):active { background: var(--chip); }
-  .choice span { flex: 1; }
-  .choice .mark { flex: none; font-weight: 700; margin-left: 12px; display: flex; align-items: center; gap: 6px; }
+  .qtitle { margin: 0; font-weight: 500; }
+  .qtext { white-space: pre-wrap; margin: 0 0 12px; overflow-wrap: anywhere; }
+  .choice { position: relative; display: flex; align-items: center; width: 100%; min-height: 50px; margin: 0 0 10px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 2px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; overflow: hidden; }
+  .choice:not(:disabled):hover { background: var(--chip); }
   .choice:disabled { cursor: default; }
-  .choice.correct { border-color: var(--ok); color: var(--ok); background: var(--ok-bg); }
+  .choice .fillbar { position: absolute; inset: 0 auto 0 0; background: var(--fill); transition: width .5s ease; }
+  .choice.correct { border-color: var(--ok); color: var(--ok); }
+  .choice.correct .fillbar { background: var(--ok-fill); }
   .choice.wrong { border-color: var(--ng); color: var(--ng); background: var(--ng-bg); }
-  .choice.dim { opacity: .55; }
-  .icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 14px; }
+  .choice span { position: relative; }
+  .choice .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .choice .pct { flex: none; margin-left: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .icon { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--bg); font-size: 12px; }
   .icon.ok { background: var(--ok); } .icon.ng { background: var(--ng); }
-  .result { font-size: 14px; color: var(--sub); margin: 2px 4px 10px; }
-  .result b.ok { color: var(--ok); } .result b.ng { color: var(--ng); }
-  .exp { background: var(--box); padding: 14px 16px; font-size: 14px; margin-bottom: 8px; }
+  .count { font-size: 14px; color: var(--sub); margin: 0 4px 10px; }
+  .result { font-weight: 700; }
+  .result.ok { color: var(--ok); } .result.ng { color: var(--ng); }
+  .exp { background: var(--box); padding: 14px 16px; font-size: 14px; margin-bottom: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .exp b { display: block; margin-bottom: 4px; }
-  .actions { display: flex; justify-content: flex-end; }
-  .link { border: 0; background: none; color: #1e88e5; font: inherit; font-size: 14px; padding: 6px 0; cursor: pointer; }
-  .empty { text-align: center; color: var(--sub); padding: 48px 0; }
-  .footer { text-align: center; padding: 24px 0; }
-  .footer button { margin: 0 6px; }
+  .actions { display: flex; justify-content: flex-end; gap: 16px; }
+  .link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 14px; padding: 8px 0; cursor: pointer; }
+  .link.danger { color: var(--ng); }
+  .empty { text-align: center; color: var(--sub); padding: 56px 0; }
+
+  /* 成績 */
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+  .tile { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .tile .lbl { font-size: 13px; color: var(--sub); }
+  .tile .big { font-size: 30px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile .big small { font-size: 16px; }
+  .tile .sm { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  @media (max-width: 480px) { .tiles { grid-template-columns: 1fr 1fr; } .tiles .tile:first-child { grid-column: 1 / -1; } }
+  h2 { font-size: 17px; margin: 28px 0 10px; }
+  .dots { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; max-width: 520px; }
+  .dot { aspect-ratio: 1; border-radius: 3px; background: var(--fill); }
+  .dot.o { background: var(--ok); } .dot.x { background: var(--ng); }
+  .legend { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  .cats { display: grid; gap: 10px; }
+  .cat { display: grid; grid-template-columns: 6.5em 1fr 5.5em; gap: 10px; align-items: center; font-size: 14px; }
+  .track { height: 10px; background: var(--fill); border-radius: 5px; overflow: hidden; }
+  .track i { display: block; height: 100%; background: var(--ok); border-radius: 5px; }
+  .cat .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--sub); }
+
+  /* 投稿フォーム */
+  form { display: grid; gap: 16px; margin-top: 20px; }
+  label { font-size: 14px; font-weight: 500; display: grid; gap: 6px; }
+  input[type=text], textarea, select { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+  textarea { min-height: 88px; resize: vertical; }
+  .crow { display: flex; align-items: center; gap: 10px; }
+  .crow input[type=radio] { width: 22px; height: 22px; flex: none; accent-color: var(--ok); }
+  .hint { font-size: 13px; color: var(--sub); font-weight: 400; }
+  .symbols { display: flex; flex-wrap: wrap; gap: 6px; }
+  .symbols button { border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 6px; min-width: 36px; padding: 4px 8px; font: inherit; cursor: pointer; }
+  .primary { border: 0; background: var(--fg); color: var(--bg); font: inherit; font-weight: 700; padding: 12px 18px; border-radius: 20px; cursor: pointer; justify-self: start; }
+  .primary:disabled { opacity: .4; cursor: default; }
+  .msg { font-size: 14px; }
+  .msg.err { color: var(--ng); } .msg.ok { color: var(--ok); }
+  @media (prefers-reduced-motion: reduce) { .choice .fillbar { transition: none; } }
+</style>
+<style>
+  html, body { margin: 0; }
+  :root { padding-top: env(safe-area-inset-top, 0px); }
+  .idbox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .idbox code { font-size: 13px; background: var(--box); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+  .seed { margin-top: 12px; }
 </style>
 </head>
 <body>
 <header>
-  <div class="bar">
-    <h1>数学4択クイズ</h1>
-    <div class="score" id="score"></div>
+  <div class="wrap">
+    <div class="bar">
+      <h1>数学4択クイズ</h1>
+      <div class="mini" id="mini"></div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab on" data-tab="feed">問題</button>
+      <button class="tab" data-tab="stats">成績</button>
+      <button class="tab" data-tab="post">投稿する</button>
+    </nav>
   </div>
-  <div class="chips" id="chips"></div>
 </header>
-<main id="feed"></main>
 
-<script src="questions.js"></script>
-<script>
-(() => {
-  const STORE_KEY = "math-quiz-records-v1";
-  const CHANNEL = "野球好きな数学教師";
+<main class="wrap">
+  <section id="v-feed">
+    <div id="notice"></div>
+    <div class="chips" id="chips"></div>
+    <div id="feed"><div class="empty">問題を読み込んでいます…</div></div>
+  </section>
 
-  // 記録: { [問題ID]: { tries, correct, last } }  last = 最後に選んだ番号(1-4)
-  let records = {};
-  try { records = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) {}
-  const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(records)); } catch (e) {} };
+  <section id="v-stats" hidden></section>
 
-  // 問題文から安定したIDを作る（問題を並べ替えても記録が残る）
-  const idOf = q => {
-    let h = 0; const s = q.question + "|" + q.choices.join("|");
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return "q" + (h >>> 0).toString(36);
-  };
-  const items = QUESTIONS.map((q, i) => ({ ...q, no: i + 1, id: idOf(q) }));
-
-  const categories = [...new Set(items.map(q => q.category))];
-  let filter = "すべて";
-  let shuffled = false;
-  let order = items.slice();
-
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  function renderScore() {
-    const done = items.filter(q => records[q.id] && records[q.id].last);
-    const ok = done.filter(q => records[q.id].last === q.answer).length;
-    document.getElementById("score").innerHTML =
-      `正解 <b>${ok}</b> / ${done.length} 問<br>全 ${items.length} 問`;
-  }
-
-  function renderChips() {
-    const names = ["すべて", ...categories, "まちがえた問題", "まだ解いていない"];
-    const el = document.getElementById("chips");
-    el.innerHTML = names.map(n =>
-      `<button class="chip ${n === filter ? "on" : ""}" data-f="${esc(n)}">${esc(n)}</button>`).join("") +
-      `<button class="chip ${shuffled ? "on" : ""}" data-shuffle>🔀 シャッフル</button>`;
-  }
-
-  function visible() {
-    return order.filter(q => {
-      const r = records[q.id];
-      if (filter === "すべて") return true;
-      if (filter === "まちがえた問題") return r && r.last && r.last !== q.answer;
-      if (filter === "まだ解いていない") return !r || !r.last;
-      return q.category === filter;
-    });
-  }
-
-  function postHTML(q) {
-    const r = records[q.id];
-    const answered = r && r.last;
-    const choices = q.choices.map((c, i) => {
-      const n = i + 1;
-      let cls = "", mark = "";
-      if (answered) {
-        if (n === q.answer) { cls = "correct"; mark = `<span class="icon ok">✓</span>正解`; }
-        else if (n === r.last) { cls = "wrong"; mark = `<span class="icon ng">✕</span>あなたの回答`; }
-        else cls = "dim";
-      }
-      return `<button class="choice ${cls}" data-q="${q.id}" data-n="${n}" ${answered ? "disabled" : ""}>
-        <span>${esc(c)}</span><span class="mark">${mark}</span></button>`;
-    }).join("");
-
-    let after = "";
-    if (answered) {
-      const good = r.last === q.answer;
-      after = `
-        <div class="result">${good ? '<b class="ok">⭕ 正解！</b>' : '<b class="ng">❌ 不正解…</b>'}
-          　これまで ${r.tries} 回中 ${r.correct} 回正解</div>
-        <div class="exp"><b>解説</b>${esc(q.explanation)}</div>
-        <div class="actions"><button class="link" data-retry="${q.id}">もう一度解く</button></div>`;
-    }
-
-    return `<article class="post" id="${q.id}">
-      <div class="head">
-        <div class="avatar">⚾</div>
-        <div><div class="name">${esc(CHANNEL)}</div><div class="meta">${esc(q.category)}</div></div>
+  <section id="v-post" hidden>
+    <form id="pform" novalidate>
+      <div class="notice" id="post-note">投稿した問題は、このページを開いている全員のフィードに表示されます。</div>
+      <label>ニックネーム <span class="hint">（投稿に表示されます）</span>
+        <input type="text" id="f-name" placeholder="例：由伸" maxlength="20">
+      </label>
+      <label>単元
+        <input type="text" id="f-cat" list="cat-list" placeholder="例：2次関数" maxlength="20">
+        <datalist id="cat-list"></datalist>
+      </label>
+      <label>問題文
+        <textarea id="f-q" placeholder="例：y = x² − 4x + 3 の頂点の座標は？" maxlength="600"></textarea>
+      </label>
+      <div>
+        <div class="hint" style="margin-bottom:6px">記号を入力欄に挿入</div>
+        <div class="symbols" id="symbols"></div>
       </div>
-      <p class="qtitle">Q${q.no}. ${esc(q.category)}</p>
-      <p class="qtext">${esc(q.question)}</p>
-      ${choices}
-      ${after}
-    </article>`;
-  }
-
-  function renderFeed() {
-    const list = visible();
-    const feed = document.getElementById("feed");
-    feed.innerHTML = list.length
-      ? list.map(postHTML).join("") +
-        `<div class="footer"><button class="link" data-reset>記録をすべてリセット</button></div>`
-      : `<div class="empty">${filter === "まちがえた問題" ? "まちがえた問題はありません 🎉" : "問題がありません"}</div>`;
-  }
-
-  function renderAll() { renderScore(); renderChips(); renderFeed(); }
-
-  function replacePost(id) {
-    const q = items.find(x => x.id === id);
-    const el = document.getElementById(id);
-    if (el) el.outerHTML = postHTML(q);
-    renderScore();
-  }
-
-  document.addEventListener("click", e => {
-    const t = e.target.closest("button");
-    if (!t) return;
-
-    if (t.dataset.f) { filter = t.dataset.f; renderChips(); renderFeed(); window.scrollTo(0, 0); return; }
-
-    if ("shuffle" in t.dataset) {
-      shuffled = !shuffled;
-      order = items.slice();
-      if (shuffled) for (let i = order.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]];
-      }
-      renderChips(); renderFeed(); window.scrollTo(0, 0); return;
-    }
-
-    if (t.dataset.q) {
-      const q = items.find(x => x.id === t.dataset.q);
-      const n = Number(t.dataset.n);
-      const r = records[q.id] || { tries: 0, correct: 0, last: 0 };
-      r.tries++; if (n === q.answer) r.correct++; r.last = n;
-      records[q.id] = r; save();
-      if (navigator.vibrate) navigator.vibrate(n === q.answer ? 30 : [60, 40, 60]);
-      replacePost(q.id); return;
-    }
-
-    if (t.dataset.retry) {
-      const r = records[t.dataset.retry]; if (r) r.last = 0; save();
-      replacePost(t.dataset.retry); return;
-    }
-
-    if ("reset" in t.dataset) {
-      if (confirm("すべての回答記録を消しますか？")) { records = {}; save(); renderAll(); }
-    }
-  });
-
-  renderAll();
-})();
-</script>
+      <div style="display:grid; gap:8px">
+        <div style="font-size:14px; font-weight:500">選択肢 <span class="hint">（正解に ● をつける）</span></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a1" value="1" aria-label="選択肢1を正解にする"><input type="text" id="f-c1" placeholder="選択肢 1" maxlength="80"></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a2" value="2" aria-label="選択肢2を正解にする"><input type="text" id="f-c2" placeholder="選択肢 2" maxlength="80"></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a3" value="3" aria-label="選択肢3を正解にする"><input type="text" id="f-c3" placeholder="選択肢 3" maxlength="80"></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a4" value="4" aria-label="選択肢4を正解にする"><input type="text" id="f-c4" placeholder="選択肢 4" maxlength="80"></div>
+      </div>
+      <label>解説
+        <textarea id="f-exp" placeholder="正解になる理由を書きましょう" maxlength="1000"></textarea>
+      </label>
+      <button class="primary" id="f-submit" type="submit">投稿する</button>
+      <div class="msg" id="f-msg" role="status"></div>
+    </form>
+  </section>
+</main>
+<script src="questions.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
