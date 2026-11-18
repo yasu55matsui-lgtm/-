@@ -1,0 +1,591 @@
+<title>数学4択クイズ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+  /* Layout: YouTubeのコミュニティ投稿風の1カラムフィード + 上部タブ（問題 / 成績 / 投稿） */
+  :root {
+    --bg: #ffffff; --fg: #0f0f0f; --sub: #5f6368; --line: #dadce0;
+    --box: #eef0f2; --chip: #f1f3f4; --chip-on: #0f0f0f; --chip-on-fg: #ffffff;
+    --accent: #1a73e8; --fill: #e3e7eb;
+    --ok: #1e7b34; --ok-bg: #e6f4ea; --ok-fill: #ccebd5;
+    --ng: #c5221f; --ng-bg: #fce8e6;
+    --font: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f0f0f; --fg: #f1f1f1; --sub: #a8adb3; --line: #3a3c3f;
+      --box: #232527; --chip: #26282a; --chip-on: #f1f1f1; --chip-on-fg: #0f0f0f;
+      --accent: #8ab4f8; --fill: #2c2f33;
+      --ok: #6dd58c; --ok-bg: #16281b; --ok-fill: #1f4128;
+      --ng: #f28b82; --ng-bg: #3a1f1d; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f0f0f; --fg: #f1f1f1; --sub: #a8adb3; --line: #3a3c3f;
+    --box: #232527; --chip: #26282a; --chip-on: #f1f1f1; --chip-on-fg: #0f0f0f;
+    --accent: #8ab4f8; --fill: #2c2f33;
+    --ok: #6dd58c; --ok-bg: #16281b; --ok-fill: #1f4128;
+    --ng: #f28b82; --ng-bg: #3a1f1d; color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.65; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  .wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .bar { display: flex; align-items: center; gap: 12px; padding-block: 12px 4px; }
+  .bar h1 { font-size: 20px; margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini { font-size: 13px; color: var(--sub); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .mini b { color: var(--fg); font-size: 15px; }
+  .tabs { display: flex; gap: 4px; }
+  .tab { border: 0; background: none; font: inherit; font-size: 15px; color: var(--sub); padding: 10px 14px; cursor: pointer; border-bottom: 3px solid transparent; }
+  .tab.on { color: var(--fg); font-weight: 700; border-bottom-color: var(--fg); }
+  .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-block: 12px 4px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { border: 0; background: var(--chip); color: var(--fg); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; }
+  .chip.on { background: var(--chip-on); color: var(--chip-on-fg); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { padding-block: 0 96px; }
+  .notice { background: var(--box); padding: 10px 14px; font-size: 14px; margin-top: 12px; border-radius: 8px; }
+  .post { padding-block: 20px 8px; border-bottom: 1px solid var(--line); }
+  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 17px; }
+  .who { flex: 1; min-width: 0; }
+  .name { font-weight: 700; font-size: 14px; }
+  .name .tag { font-weight: 500; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+  .meta { color: var(--sub); font-size: 13px; }
+  .qtitle { margin: 0; font-weight: 500; }
+  .qtext { white-space: pre-wrap; margin: 0 0 12px; overflow-wrap: anywhere; }
+  .choice { position: relative; display: flex; align-items: center; width: 100%; min-height: 50px; margin: 0 0 10px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 2px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; overflow: hidden; }
+  .choice:not(:disabled):hover { background: var(--chip); }
+  .choice:disabled { cursor: default; }
+  .choice .fillbar { position: absolute; inset: 0 auto 0 0; background: var(--fill); transition: width .5s ease; }
+  .choice.correct { border-color: var(--ok); color: var(--ok); }
+  .choice.correct .fillbar { background: var(--ok-fill); }
+  .choice.wrong { border-color: var(--ng); color: var(--ng); background: var(--ng-bg); }
+  .choice span { position: relative; }
+  .choice .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .choice .pct { flex: none; margin-left: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .icon { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--bg); font-size: 12px; }
+  .icon.ok { background: var(--ok); } .icon.ng { background: var(--ng); }
+  .count { font-size: 14px; color: var(--sub); margin: 0 4px 10px; }
+  .result { font-weight: 700; }
+  .result.ok { color: var(--ok); } .result.ng { color: var(--ng); }
+  .exp { background: var(--box); padding: 14px 16px; font-size: 14px; margin-bottom: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .exp b { display: block; margin-bottom: 4px; }
+  .actions { display: flex; justify-content: flex-end; gap: 16px; }
+  .link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 14px; padding: 8px 0; cursor: pointer; }
+  .link.danger { color: var(--ng); }
+  .empty { text-align: center; color: var(--sub); padding: 56px 0; }
+
+  /* 成績 */
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+  .tile { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .tile .lbl { font-size: 13px; color: var(--sub); }
+  .tile .big { font-size: 30px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile .big small { font-size: 16px; }
+  .tile .sm { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  @media (max-width: 480px) { .tiles { grid-template-columns: 1fr 1fr; } .tiles .tile:first-child { grid-column: 1 / -1; } }
+  h2 { font-size: 17px; margin: 28px 0 10px; }
+  .dots { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; max-width: 520px; }
+  .dot { aspect-ratio: 1; border-radius: 3px; background: var(--fill); }
+  .dot.o { background: var(--ok); } .dot.x { background: var(--ng); }
+  .legend { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  .cats { display: grid; gap: 10px; }
+  .cat { display: grid; grid-template-columns: 6.5em 1fr 5.5em; gap: 10px; align-items: center; font-size: 14px; }
+  .track { height: 10px; background: var(--fill); border-radius: 5px; overflow: hidden; }
+  .track i { display: block; height: 100%; background: var(--ok); border-radius: 5px; }
+  .cat .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--sub); }
+
+  /* 投稿フォーム */
+  form { display: grid; gap: 16px; margin-top: 20px; }
+  label { font-size: 14px; font-weight: 500; display: grid; gap: 6px; }
+  input[type=text], textarea, select { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+  textarea { min-height: 88px; resize: vertical; }
+  .crow { display: flex; align-items: center; gap: 10px; }
+  .crow input[type=radio] { width: 22px; height: 22px; flex: none; accent-color: var(--ok); }
+  .hint { font-size: 13px; color: var(--sub); font-weight: 400; }
+  .symbols { display: flex; flex-wrap: wrap; gap: 6px; }
+  .symbols button { border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 6px; min-width: 36px; padding: 4px 8px; font: inherit; cursor: pointer; }
+  .primary { border: 0; background: var(--fg); color: var(--bg); font: inherit; font-weight: 700; padding: 12px 18px; border-radius: 20px; cursor: pointer; justify-self: start; }
+  .primary:disabled { opacity: .4; cursor: default; }
+  .msg { font-size: 14px; }
+  .msg.err { color: var(--ng); } .msg.ok { color: var(--ok); }
+  @media (prefers-reduced-motion: reduce) { .choice .fillbar { transition: none; } }
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <h1>数学4択クイズ</h1>
+      <div class="mini" id="mini"></div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab on" data-tab="feed">問題</button>
+      <button class="tab" data-tab="stats">成績</button>
+      <button class="tab" data-tab="post">投稿する</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="v-feed">
+    <div id="notice"></div>
+    <div class="chips" id="chips"></div>
+    <div id="feed"><div class="empty">問題を読み込んでいます…</div></div>
+  </section>
+
+  <section id="v-stats" hidden></section>
+
+  <section id="v-post" hidden>
+    <form id="pform" novalidate>
+      <div class="notice" id="post-note">投稿した問題は、このページを開いている全員のフィードに表示されます。</div>
+      <label>単元
+        <input type="text" id="f-cat" list="cat-list" placeholder="例：2次関数" maxlength="20">
+        <datalist id="cat-list"></datalist>
+      </label>
+      <label>問題文
+        <textarea id="f-q" placeholder="例：y = x² − 4x + 3 の頂点の座標は？" maxlength="600"></textarea>
+      </label>
+      <div>
+        <div class="hint" style="margin-bottom:6px">記号を入力欄に挿入</div>
+        <div class="symbols" id="symbols"></div>
+      </div>
+      <div style="display:grid; gap:8px">
+        <div style="font-size:14px; font-weight:500">選択肢 <span class="hint">（正解に ● をつける）</span></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a1" value="1" aria-label="選択肢1を正解にする"><input type="text" id="f-c1" placeholder="選択肢 1" maxlength="80"></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a2" value="2" aria-label="選択肢2を正解にする"><input type="text" id="f-c2" placeholder="選択肢 2" maxlength="80"></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a3" value="3" aria-label="選択肢3を正解にする"><input type="text" id="f-c3" placeholder="選択肢 3" maxlength="80"></div>
+        <div class="crow"><input type="radio" name="f-ans" id="f-a4" value="4" aria-label="選択肢4を正解にする"><input type="text" id="f-c4" placeholder="選択肢 4" maxlength="80"></div>
+      </div>
+      <label>解説
+        <textarea id="f-exp" placeholder="正解になる理由を書きましょう" maxlength="1000"></textarea>
+      </label>
+      <button class="primary" id="f-submit" type="submit">投稿する</button>
+      <div class="msg" id="f-msg" role="status"></div>
+    </form>
+  </section>
+</main>
+
+<script>
+(() => {
+  const TEACHER = "野球好きな数学教師";
+  const OFFICIAL = "official";
+  const LOCAL_KEY = "math-quiz-local-v2";
+  const SYMBOLS = ["²", "³", "√", "π", "θ", "°", "≦", "≧", "≠", "−", "×", "÷", "±", "∞", "·", "₂", "ₙ", "∠", "△"];
+
+  const S = {
+    db: null, user: null, uid: null, isOwner: false, canWrite: true,
+    posts: {}, answers: {}, my: emptyStats(),
+    loaded: false, slow: false, dbMissing: false, readOnlyReason: "",
+    tab: "feed", filter: "すべて", retry: new Set(), confirmDel: null, names: {},
+  };
+
+  function emptyStats() { return { total: 0, correct: 0, recent: "", last: {}, byCat: {} }; }
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+
+  // ---------- 問題一覧（全投稿をまとめる） ----------
+  function allQuestions() {
+    const list = [];
+    for (const [author, doc] of Object.entries(S.posts)) {
+      for (const it of (doc && Array.isArray(doc.items) ? doc.items : [])) {
+        if (!it || !Array.isArray(it.choices) || it.choices.length !== 4) continue;
+        list.push({ ...it, author, qid: author + "_" + it.id });
+      }
+    }
+    return list.sort((a, b) => (b.at || 0) - (a.at || 0));
+  }
+
+  function tally() {
+    const t = {};
+    for (const doc of Object.values(S.answers)) {
+      const a = doc && doc.a; if (!a) continue;
+      for (const [qid, n] of Object.entries(a)) {
+        const c = t[qid] || (t[qid] = [0, 0, 0, 0, 0]);
+        if (n >= 1 && n <= 4) { c[n]++; c[0]++; }
+      }
+    }
+    return t;
+  }
+
+  // ---------- 保存（1ドキュメントにつき1件ずつ順番に書き込む） ----------
+  const queues = {};
+  function save(path, getData) {
+    const q = queues[path] || (queues[path] = { busy: false, dirty: false });
+    q.dirty = true; q.get = getData;
+    if (q.busy) return q.done;
+    q.busy = true;
+    q.done = (async () => {
+      let retried = false;
+      while (q.dirty) {
+        q.dirty = false;
+        try { await S.db.doc(path).set(q.get()); }
+        catch (e) {
+          if (e && e.code === "unavailable" && !retried) {
+            retried = true; q.dirty = true;
+            await new Promise(r => setTimeout(r, 800 + Math.random() * 800));
+            continue;
+          }
+          if (e && e.code === "invalid_argument") goReadOnly("この共有設定では回答・投稿を保存できません。");
+          else if (e && e.code === "quota_exceeded") flash("保存容量の上限に達しました。古い投稿を削除してください。");
+          throw e;
+        }
+      }
+      q.busy = false;
+    })().catch(e => { q.busy = false; throw e; });
+    return q.done;
+  }
+
+  function goReadOnly(reason) {
+    if (!S.canWrite) return;
+    S.canWrite = false; S.readOnlyReason = reason;
+    renderNotice(); renderPostForm();
+  }
+  function flash(t) { S.flashMsg = t; renderNotice(); }
+
+  function loadLocal() {
+    try { const v = JSON.parse(localStorage.getItem(LOCAL_KEY)); if (v && typeof v.total === "number") return v; } catch (e) {}
+    return emptyStats();
+  }
+  function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(S.my)); } catch (e) {} }
+
+  function persistMy() {
+    if (S.db && S.uid && S.canWrite) {
+      const snap = JSON.parse(JSON.stringify(S.my));
+      save(`data/users/${S.uid}/stats`, () => snap).catch(() => saveLocal());
+    } else saveLocal();
+  }
+
+  // ---------- 回答 ----------
+  function answer(qid, n) {
+    const q = allQuestions().find(x => x.qid === qid); if (!q) return;
+    const ok = n === q.answer;
+    const m = S.my;
+    m.total++; if (ok) m.correct++;
+    m.recent = (m.recent + (ok ? "1" : "0")).slice(-100);
+    m.last[qid] = n;
+    const c = m.byCat[q.category] || (m.byCat[q.category] = { t: 0, c: 0 });
+    c.t++; if (ok) c.c++;
+    S.retry.delete(qid);
+    persistMy();
+
+    // みんなの集計には「最初の回答」だけを入れる
+    if (S.db && S.uid && S.canWrite) {
+      const mine = S.answers[S.uid] || { a: {} };
+      if (!(qid in mine.a)) {
+        const next = { a: { ...mine.a, [qid]: n } };
+        S.answers = { ...S.answers, [S.uid]: next };
+        save(`answers/${S.uid}`, () => S.answers[S.uid]).catch(() => {});
+      }
+    }
+    if (navigator.vibrate) { try { navigator.vibrate(ok ? 30 : [60, 40, 60]); } catch (e) {} }
+    renderMini(); renderOne(qid);
+  }
+
+  // ---------- 表示 ----------
+  const COLORS = ["#1a73e8", "#e8710a", "#188038", "#a142f4", "#d93025", "#12a4af", "#c26401", "#5f6368"];
+  function colorFor(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) | 0; return COLORS[Math.abs(h) % COLORS.length]; }
+  function authorName(id) {
+    if (id === OFFICIAL) return TEACHER;
+    if (id === S.uid) return (S.names[id] || "あなた");
+    return S.names[id] || "参加者";
+  }
+  function ago(ts) {
+    if (!ts) return "";
+    const s = (Date.now() - ts) / 1000;
+    if (s < 60) return "たった今";
+    if (s < 3600) return Math.floor(s / 60) + " 分前";
+    if (s < 86400) return Math.floor(s / 3600) + " 時間前";
+    if (s < 86400 * 30) return Math.floor(s / 86400) + " 日前";
+    const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function renderMini() {
+    const m = S.my;
+    $("mini").innerHTML = m.total ? `正答率 <b>${pct(m.correct, m.total)}%</b>　${m.correct}/${m.total}` : "";
+  }
+
+  function renderNotice() {
+    const parts = [];
+    if (S.dbMissing) parts.push("みんなの問題と集計を読み込めませんでした。claude.ai にサインインしてから、もう一度このページを開いてください。");
+    else if (!S.canWrite) parts.push((S.readOnlyReason || "閲覧のみで参加しています。") + " 回答はこの端末にだけ記録され、みんなの集計には入りません。");
+    if (S.slow && !S.loaded) parts.push("問題の読み込みに時間がかかっています。通信状況を確認してください。");
+    if (S.flashMsg) parts.push(S.flashMsg);
+    $("notice").innerHTML = parts.map(p => `<div class="notice">${esc(p)}</div>`).join("");
+  }
+
+  function renderChips(qs) {
+    const cats = [...new Set(qs.map(q => q.category).filter(Boolean))];
+    const names = ["すべて", ...cats, "まちがえた問題", "まだ解いていない", "先生の問題", "みんなの投稿"];
+    if (!names.includes(S.filter)) S.filter = "すべて";
+    $("chips").innerHTML = names.map(n => `<button class="chip ${n === S.filter ? "on" : ""}" data-f="${esc(n)}">${esc(n)}</button>`).join("");
+    $("cat-list").innerHTML = cats.map(c => `<option value="${esc(c)}">`).join("");
+  }
+
+  function visible(qs) {
+    return qs.filter(q => {
+      const last = S.my.last[q.qid];
+      switch (S.filter) {
+        case "すべて": return true;
+        case "まちがえた問題": return last && last !== q.answer;
+        case "まだ解いていない": return !last;
+        case "先生の問題": return q.author === OFFICIAL;
+        case "みんなの投稿": return q.author !== OFFICIAL;
+        default: return q.category === S.filter;
+      }
+    });
+  }
+
+  function postHTML(q, counts) {
+    const last = S.my.last[q.qid];
+    const shown = last && !S.retry.has(q.qid);
+    const c = counts[q.qid] || [0, 0, 0, 0, 0];
+    const total = c[0];
+    const choices = q.choices.map((txt, i) => {
+      const n = i + 1;
+      let cls = "", right = "", width = 0;
+      if (shown) {
+        width = total ? c[n] / total * 100 : 0;
+        if (n === q.answer) cls = "correct"; else if (n === last) cls = "wrong";
+        const mark = n === q.answer ? `<span class="icon ok" aria-label="正解">✓</span>` : n === last ? `<span class="icon ng" aria-label="あなたの回答">✕</span>` : "";
+        right = `<span class="pct">${mark}${total ? Math.round(width) + "%" : ""}</span>`;
+      }
+      return `<button class="choice ${cls}" data-q="${esc(q.qid)}" data-n="${n}" ${shown ? "disabled" : ""}>
+        ${shown ? `<span class="fillbar" style="width:${width}%"></span>` : ""}
+        <span class="txt">${esc(txt)}</span>${right}</button>`;
+    }).join("");
+
+    const canDelete = S.canWrite && S.db && ((q.author === S.uid) || (S.isOwner));
+    const delBtn = canDelete ? `<button class="link danger" data-del="${esc(q.qid)}">${S.confirmDel === q.qid ? "本当に削除する" : "削除"}</button>` : "";
+
+    let after = "";
+    if (shown) {
+      const ok = last === q.answer;
+      after = `<div class="count"><span class="result ${ok ? "ok" : "ng"}">${ok ? "正解！" : "不正解"}</span>　${total} 人が回答</div>
+        <div class="exp"><b>解説</b>${esc(q.explanation || "（解説なし）")}</div>
+        <div class="actions">${delBtn}<button class="link" data-retry="${esc(q.qid)}">もう一度解く</button></div>`;
+    } else {
+      after = `<div class="count">${total} 人が回答</div>${delBtn ? `<div class="actions">${delBtn}</div>` : ""}`;
+    }
+
+    const isOff = q.author === OFFICIAL;
+    const nm = authorName(q.author);
+    return `<article class="post" id="p-${esc(q.qid)}">
+      <div class="head">
+        <div class="avatar" style="background:${colorFor(q.author)}">${isOff ? "⚾" : esc((nm || "?").slice(0, 1))}</div>
+        <div class="who"><div class="name">${esc(nm)}${isOff ? '<span class="tag">先生</span>' : q.author === S.uid ? '<span class="tag">あなた</span>' : ""}</div>
+        <div class="meta">${esc(ago(q.at))}</div></div>
+      </div>
+      <p class="qtitle">${esc(q.category || "その他")}</p>
+      <p class="qtext">${esc(q.question)}</p>
+      ${choices}
+      ${after}
+    </article>`;
+  }
+
+  function renderFeed() {
+    const qs = allQuestions();
+    renderChips(qs);
+    if (!S.loaded) {
+      $("feed").innerHTML = S.dbMissing ? "" : `<div class="empty">問題を読み込んでいます…</div>`;
+      return;
+    }
+    const list = visible(qs);
+    const counts = tally();
+    $("feed").innerHTML = list.length ? list.map(q => postHTML(q, counts)).join("")
+      : `<div class="empty">${!qs.length ? "まだ問題がありません。「投稿する」から最初の問題を作りましょう。"
+          : S.filter === "まちがえた問題" ? "まちがえた問題はありません。" : "この条件の問題はありません。"}</div>`;
+  }
+
+  function renderOne(qid) {
+    const el = document.getElementById("p-" + qid);
+    const q = allQuestions().find(x => x.qid === qid);
+    if (el && q) el.outerHTML = postHTML(q, tally()); else renderFeed();
+  }
+
+  function renderStats() {
+    const m = S.my;
+    const qs = allQuestions();
+    const solved = qs.filter(q => m.last[q.qid]).length;
+    const r = m.recent || "";
+    const rOk = [...r].filter(x => x === "1").length;
+    const dots = Array.from({ length: 100 }, (_, i) => {
+      const v = r[i]; return `<span class="dot ${v === "1" ? "o" : v === "0" ? "x" : ""}"></span>`;
+    }).join("");
+    const cats = Object.entries(m.byCat).sort((a, b) => b[1].t - a[1].t);
+    $("v-stats").innerHTML = `
+      <div class="tiles">
+        <div class="tile"><div class="lbl">通算の正答率</div><div class="big">${m.total ? pct(m.correct, m.total) : "–"}<small>%</small></div><div class="sm">${m.correct} / ${m.total} 回正解</div></div>
+        <div class="tile"><div class="lbl">最近100問の正答率</div><div class="big">${r.length ? pct(rOk, r.length) : "–"}<small>%</small></div><div class="sm">直近 ${r.length} 問中 ${rOk} 問</div></div>
+        <div class="tile"><div class="lbl">解いた問題</div><div class="big">${solved}<small> / ${qs.length}</small></div><div class="sm">まちがえたまま ${qs.filter(q => m.last[q.qid] && m.last[q.qid] !== q.answer).length} 問</div></div>
+      </div>
+      <h2>最近100問の記録</h2>
+      <div class="dots" aria-label="最近100問の正解と不正解">${dots}</div>
+      <div class="legend">古い順に左上から。緑が正解、赤が不正解。</div>
+      <h2>単元ごとの正答率</h2>
+      <div class="cats">${cats.length ? cats.map(([k, v]) => `
+        <div class="cat"><span>${esc(k)}</span><span class="track"><i style="width:${pct(v.c, v.t)}%"></i></span><span class="v">${pct(v.c, v.t)}%（${v.c}/${v.t}）</span></div>`).join("")
+        : `<div class="hint">問題を解くとここに表示されます。</div>`}</div>
+      <h2>記録の管理</h2>
+      <div class="hint">${S.db && S.uid && S.canWrite ? "記録はあなたのアカウントに保存され、他の人には見えません。" : "記録はこの端末のブラウザに保存されています。"}</div>
+      <button class="link danger" id="reset">${S.confirmReset ? "本当にリセットする（元に戻せません）" : "自分の記録をリセット"}</button>`;
+  }
+
+  function renderPostForm() {
+    const can = S.db && S.uid && S.canWrite;
+    $("f-submit").disabled = !can;
+    $("post-note").textContent = can
+      ? "投稿した問題は、このページを開いている全員のフィードに表示されます。"
+      : (S.dbMissing ? "サインインすると問題を投稿できます。" : "この共有設定では投稿できません。先生に参加権限をもらってください。");
+  }
+
+  function renderTabs() {
+    for (const b of document.querySelectorAll(".tab")) b.classList.toggle("on", b.dataset.tab === S.tab);
+    $("v-feed").hidden = S.tab !== "feed";
+    $("v-stats").hidden = S.tab !== "stats";
+    $("v-post").hidden = S.tab !== "post";
+    if (S.tab === "stats") renderStats();
+  }
+
+  function renderAll() { renderMini(); renderNotice(); renderFeed(); renderPostForm(); if (S.tab === "stats") renderStats(); }
+
+  // ---------- 名前（表示のたびに解決） ----------
+  async function resolveNames() {
+    if (!S.user) return;
+    const ids = Object.keys(S.posts).filter(id => id !== OFFICIAL);
+    if (!ids.length) return;
+    try {
+      const ps = await S.user.profiles(ids);
+      let changed = false;
+      for (const id of ids) { const n = (ps[id] && ps[id].name) || ""; if (n && S.names[id] !== n) { S.names[id] = n; changed = true; } }
+      if (changed) renderFeed();
+    } catch (e) {}
+  }
+
+  // ---------- 操作 ----------
+  document.addEventListener("click", e => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.tab) { S.tab = t.dataset.tab; renderTabs(); window.scrollTo(0, 0); return; }
+    if (t.dataset.f) { S.filter = t.dataset.f; renderFeed(); window.scrollTo(0, 0); return; }
+    if (t.dataset.q) { answer(t.dataset.q, Number(t.dataset.n)); return; }
+    if (t.dataset.retry) { S.retry.add(t.dataset.retry); renderOne(t.dataset.retry); return; }
+    if (t.dataset.del) {
+      const qid = t.dataset.del;
+      if (S.confirmDel !== qid) { const prev = S.confirmDel; S.confirmDel = qid; if (prev) renderOne(prev); renderOne(qid); return; }
+      S.confirmDel = null; deletePost(qid); return;
+    }
+    if (t.id === "reset") {
+      if (!S.confirmReset) { S.confirmReset = true; renderStats(); return; }
+      S.confirmReset = false; S.my = emptyStats(); persistMy(); renderMini(); renderStats(); renderFeed(); return;
+    }
+    if (t.dataset.sym) {
+      const el = S.lastField && document.body.contains(S.lastField) ? S.lastField : $("f-q");
+      const s = el.selectionStart ?? el.value.length, en = el.selectionEnd ?? el.value.length;
+      el.value = el.value.slice(0, s) + t.dataset.sym + el.value.slice(en);
+      el.focus(); el.setSelectionRange(s + t.dataset.sym.length, s + t.dataset.sym.length);
+    }
+  });
+  document.addEventListener("focusin", e => { if (e.target.matches("#pform input[type=text], #pform textarea")) S.lastField = e.target; });
+  $("symbols").innerHTML = SYMBOLS.map(s => `<button type="button" data-sym="${s}">${s}</button>`).join("");
+  // 記号ボタンを押してもフォーカスを奪わない
+  $("symbols").addEventListener("mousedown", e => e.preventDefault());
+
+  function deletePost(qid) {
+    const q = allQuestions().find(x => x.qid === qid); if (!q) return;
+    const doc = S.posts[q.author] || { items: [] };
+    const next = { ...doc, items: doc.items.filter(it => it.id !== q.id) };
+    S.posts = { ...S.posts, [q.author]: next };
+    renderFeed();
+    save(`posts/${q.author}`, () => S.posts[q.author]).catch(() => flash("削除できませんでした。"));
+  }
+
+  $("pform").addEventListener("submit", async e => {
+    e.preventDefault();
+    const msg = $("f-msg");
+    const v = id => $(id).value.trim();
+    const choices = [v("f-c1"), v("f-c2"), v("f-c3"), v("f-c4")];
+    const ans = Number((document.querySelector('input[name="f-ans"]:checked') || {}).value || 0);
+    let err = "";
+    if (!v("f-q")) err = "問題文を入力してください。";
+    else if (choices.some(c => !c)) err = "選択肢を4つすべて入力してください。";
+    else if (new Set(choices).size < 4) err = "同じ選択肢が重複しています。";
+    else if (!ans) err = "正解の選択肢に ● をつけてください。";
+    if (err) { msg.className = "msg err"; msg.textContent = err; return; }
+    if (!(S.db && S.uid && S.canWrite)) return;
+
+    const item = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      category: v("f-cat") || "その他", question: v("f-q"), choices, answer: ans,
+      explanation: v("f-exp"), at: Date.now(),
+    };
+    const path = `posts/${S.uid}`;
+    const doc = S.posts[S.uid] || { items: [] };
+    S.posts = { ...S.posts, [S.uid]: { items: [...(doc.items || []), item] } };
+    $("f-submit").disabled = true;
+    try {
+      await save(path, () => S.posts[S.uid]);
+      for (const id of ["f-q", "f-c1", "f-c2", "f-c3", "f-c4", "f-exp"]) $(id).value = "";
+      document.querySelectorAll('input[name="f-ans"]').forEach(r => { r.checked = false; });
+      msg.className = "msg ok"; msg.textContent = "投稿しました。「問題」タブのいちばん上に表示されています。";
+      S.filter = "すべて"; renderFeed();
+    } catch (e2) {
+      msg.className = "msg err"; msg.textContent = "投稿できませんでした。時間をおいてもう一度お試しください。";
+    } finally { renderPostForm(); }
+  });
+
+  // ---------- 起動 ----------
+  async function start() {
+    S.my = loadLocal();
+    renderAll();
+    const use = window.claude && window.claude.use ? window.claude.use.bind(window.claude) : null;
+    const [db, user] = use ? await Promise.all([use("db"), use("user")]) : [null, null];
+    S.user = user;
+    if (!db) { S.dbMissing = true; S.canWrite = false; renderAll(); return; }
+    S.db = db;
+    if (user) {
+      try { S.uid = await user.id(); } catch (e) {}
+      try { S.isOwner = await user.isOwner(); } catch (e) {}
+      try { const c = await user.can("data.write"); if (c === false) { S.canWrite = false; S.readOnlyReason = "閲覧のみで参加しています。"; } } catch (e) {}
+    }
+    if (!S.uid) { S.canWrite = false; }
+
+    const timer = setTimeout(() => { S.slow = true; renderNotice(); }, 10000);
+    const onErr = () => { clearTimeout(timer); S.slow = true; renderNotice(); };
+
+    db.collection("posts").onSnapshot(snap => {
+      const next = {}; for (const d of snap.docs) next[d.id] = d.data();
+      S.posts = next;
+      if (!snap.metadata.fromCache) { clearTimeout(timer); S.slow = false; }
+      S.loaded = true; renderNotice(); renderFeed(); if (S.tab === "stats") renderStats(); resolveNames();
+    }, onErr);
+
+    db.collection("answers").onSnapshot(snap => {
+      const next = {}; for (const d of snap.docs) next[d.id] = d.data();
+      // 自分の未送信の回答は手元の内容を優先
+      if (S.uid && queues[`answers/${S.uid}`] && queues[`answers/${S.uid}`].busy && S.answers[S.uid]) next[S.uid] = S.answers[S.uid];
+      S.answers = next;
+      if (S.loaded) renderFeed();
+    }, () => {});
+
+    if (S.uid && S.canWrite) {
+      db.doc(`data/users/${S.uid}/stats`).onSnapshot(snap => {
+        const q = queues[`data/users/${S.uid}/stats`];
+        if (q && q.busy) return;
+        if (snap.exists) {
+          const d = snap.data();
+          S.my = { ...emptyStats(), ...JSON.parse(JSON.stringify(d)) };
+        } else if (S.my.total && !snap.metadata.fromCache) {
+          // 端末に残っていた記録をアカウントへ移す
+          persistMy();
+        }
+        renderMini(); if (S.loaded) renderFeed(); if (S.tab === "stats") renderStats();
+      }, () => {});
+    }
+    renderAll();
+  }
+
+  start();
+})();
+</script>
