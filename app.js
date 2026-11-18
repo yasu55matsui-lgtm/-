@@ -26,11 +26,14 @@ const store = {
 };
 
 // ---------------- データ ----------------
+// 先生の問題のID（端末だけのモードと共有モードで同じIDにして、成績を引き継げるようにする）
+const sampleId = i => "q" + String(i + 1).padStart(2, "0");
+
 function localPosts() {
   const qs = (typeof QUESTIONS !== "undefined" ? QUESTIONS : []);
   const now = Date.now();
   return qs.map((q, i) => ({
-    id: "local-q" + String(i + 1).padStart(2, "0"), official: true, authorName: TEACHER_NAME, authorUid: "",
+    id: sampleId(i), official: true, authorName: TEACHER_NAME, authorUid: "",
     category: q.category, question: q.question, choices: q.choices, answer: q.answer,
     explanation: q.explanation, at: now - (qs.length - i) * 6 * 3600e3, counts: null,
   })).reverse();
@@ -119,9 +122,10 @@ function answer(pid, n) {
   renderMini(); renderOne(pid);
 }
 
-async function createPost(item) {
-  const { collection, addDoc, serverTimestamp } = S.fb.fs;
-  await addDoc(collection(S.fb.db, "posts"), {
+async function createPost(item, id) {
+  const { collection, doc, setDoc, serverTimestamp } = S.fb.fs;
+  const ref = id ? doc(S.fb.db, "posts", id) : doc(collection(S.fb.db, "posts"));
+  await setDoc(ref, {
     ...item, authorUid: S.uid, official: S.isTeacher, at: serverTimestamp(),
     counts: { "1": 0, "2": 0, "3": 0, "4": 0, total: 0 },
   });
@@ -135,7 +139,10 @@ async function deletePost(pid) {
 
 function missingSamples() {
   const have = new Set(S.posts.filter(p => p.official).map(p => p.question));
-  return (typeof QUESTIONS !== "undefined" ? QUESTIONS : []).filter(q => !have.has(q.question));
+  const ids = new Set(S.posts.map(p => p.id));
+  return (typeof QUESTIONS !== "undefined" ? QUESTIONS : [])
+    .map((q, i) => ({ ...q, sid: sampleId(i) }))
+    .filter(q => !have.has(q.question) && !ids.has(q.sid));
 }
 
 async function seedSamples(btn) {
@@ -144,7 +151,7 @@ async function seedSamples(btn) {
   try {
     for (const q of qs) {   // 1問ずつ登録して、Q1 が一番古くなるようにする
       await createPost({ authorName: TEACHER_NAME, category: q.category, question: q.question,
-        choices: q.choices, answer: q.answer, explanation: q.explanation || "" });
+        choices: q.choices, answer: q.answer, explanation: q.explanation || "" }, q.sid);
     }
   } catch (e) { S.error = "登録できませんでした（" + (e.code || "error") + "）。"; renderNotice(); }
 }
