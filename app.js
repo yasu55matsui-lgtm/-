@@ -73,7 +73,7 @@ async function initShared() {
   S.uid = (user || (await authM.signInAnonymously(auth)).user).uid;
   S.mode = "shared";
 
-  const { doc, getDoc, collection, query, orderBy, limit, onSnapshot } = fsM;
+  const { doc, getDoc } = fsM;
   try { S.isTeacher = (await getDoc(doc(db, "teachers", S.uid))).exists(); } catch (e) { S.isTeacher = false; }
   try {
     const st = await getDoc(doc(db, "stats", S.uid));
@@ -81,20 +81,45 @@ async function initShared() {
     else if (S.my.total) persistStats();   // 端末にあった記録を引き継ぐ
   } catch (e) {}
 
-  const slow = setTimeout(() => { if (!S.loaded) { S.error = "問題の読み込みに時間がかかっています。通信状況を確認してください。"; renderNotice(); } }, 10000);
-  onSnapshot(query(collection(db, "posts"), orderBy("at", "desc"), limit(500)), snap => {
-    clearTimeout(slow);
-    S.posts = snap.docs.map(d => {
-      const v = d.data({ serverTimestamps: "estimate" });
-      return { ...v, id: d.id, at: v.at && v.at.toMillis ? v.at.toMillis() : Date.now() };
-    }).filter(p => Array.isArray(p.choices) && p.choices.length === 4);
-    S.loaded = true; S.error = "";
-    renderAll();
-  }, err => {
-    clearTimeout(slow);
-    S.error = "問題を読み込めませんでした（" + (err.code || "error") + "）。Firestore のルール設定を確認してください。";
-    S.loaded = true; renderAll();
+  await loadPosts();
+  // 画面を離れて5分以上たってから戻ったら、新しい投稿を読み込み直す
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && Date.now() - S.loadedAt > 5 * 60e3) loadPosts();
   });
+}
+
+// 問題一覧は開いたとき（と「更新」ボタン）に1回だけ読む。
+// 常時接続にすると、誰かが答えるたびに全員の画面で読み込みが発生し、無料枠を使い切りやすいため。
+function toPost(d) {
+  const v = d.data({ serverTimestamps: "estimate" });
+  return { ...v, id: d.id, at: v.at && v.at.toMillis ? v.at.toMillis() : Date.now() };
+}
+
+async function loadPosts() {
+  if (S.loading) return;
+  S.loading = true; renderChips();
+  const { collection, query, orderBy, limit, getDocs } = S.fb.fs;
+  const slow = setTimeout(() => { if (!S.loaded) { S.error = "問題の読み込みに時間がかかっています。通信状況を確認してください。"; renderNotice(); } }, 10000);
+  try {
+    const snap = await getDocs(query(collection(S.fb.db, "posts"), orderBy("at", "desc"), limit(500)));
+    S.posts = snap.docs.map(toPost).filter(p => Array.isArray(p.choices) && p.choices.length === 4);
+    S.error = ""; S.loadedAt = Date.now();
+  } catch (err) {
+    S.error = "問題を読み込めませんでした（" + (err.code || "error") + "）。通信状況を確認してから「更新」を押してください。";
+  } finally {
+    clearTimeout(slow); S.loading = false; S.loaded = true; renderAll();
+  }
+}
+
+// 1問だけ最新の集計を読み直す
+async function refreshPost(pid) {
+  const { doc, getDoc } = S.fb.fs;
+  try {
+    const d = await getDoc(doc(S.fb.db, "posts", pid));
+    if (!d.exists()) return;
+    const p = toPost(d), i = S.posts.findIndex(x => x.id === pid);
+    if (i >= 0) { S.posts[i] = p; renderOne(pid); }
+  } catch (e) {}
 }
 
 // ---------------- 操作 ----------------
@@ -115,7 +140,10 @@ function answer(pid, n) {
     const b = writeBatch(S.fb.db);
     b.set(doc(S.fb.db, "answers", pid + "_" + S.uid), { uid: S.uid, postId: pid, choice: n });
     b.update(doc(S.fb.db, "posts", pid), { ["counts." + n]: increment(1), "counts.total": increment(1) });
-    b.commit().catch(() => {});  // すでに回答済み（記録をリセットした等）のときは拒否されるだけ
+    // すでに回答済み（記録をリセットした等）のときは拒否されるだけ。どちらでも最新の割合を読み直す
+    b.commit().catch(() => {}).then(() => refreshPost(pid));
+  } else if (S.mode === "shared") {
+    refreshPost(pid);
   }
   persistStats();
   if (navigator.vibrate) { try { navigator.vibrate(ok ? 30 : [60, 40, 60]); } catch (e) {} }
@@ -125,15 +153,14 @@ function answer(pid, n) {
 async function createPost(item, id) {
   const { collection, doc, setDoc, serverTimestamp } = S.fb.fs;
   const ref = id ? doc(S.fb.db, "posts", id) : doc(collection(S.fb.db, "posts"));
-  await setDoc(ref, {
-    ...item, authorUid: S.uid, official: S.isTeacher, at: serverTimestamp(),
-    counts: { "1": 0, "2": 0, "3": 0, "4": 0, total: 0 },
-  });
+  const counts = { "1": 0, "2": 0, "3": 0, "4": 0, total: 0 };
+  await setDoc(ref, { ...item, authorUid: S.uid, official: S.isTeacher, at: serverTimestamp(), counts });
+  S.posts = [{ ...item, id: ref.id, authorUid: S.uid, official: S.isTeacher, at: Date.now(), counts }, ...S.posts];
 }
 
 async function deletePost(pid) {
   const { doc, deleteDoc } = S.fb.fs;
-  try { await deleteDoc(doc(S.fb.db, "posts", pid)); }
+  try { await deleteDoc(doc(S.fb.db, "posts", pid)); S.posts = S.posts.filter(p => p.id !== pid); renderAll(); }
   catch (e) { S.error = "削除できませんでした。"; renderNotice(); }
 }
 
@@ -153,7 +180,8 @@ async function seedSamples(btn) {
       await createPost({ authorName: TEACHER_NAME, category: q.category, question: q.question,
         choices: q.choices, answer: q.answer, explanation: q.explanation || "" }, q.sid);
     }
-  } catch (e) { S.error = "登録できませんでした（" + (e.code || "error") + "）。"; renderNotice(); }
+  } catch (e) { S.error = "登録できませんでした（" + (e.code || "error") + "）。"; }
+  await loadPosts();
 }
 
 // ---------------- 表示 ----------------
@@ -192,7 +220,8 @@ function renderChips() {
   const names = ["すべて", ...cats, "まちがえた問題", "まだ解いていない"];
   if (S.mode === "shared") names.push("先生の問題", "みんなの投稿");
   if (!names.includes(S.filter)) S.filter = "すべて";
-  $("chips").innerHTML = names.map(n => `<button class="chip ${n === S.filter ? "on" : ""}" data-f="${esc(n)}">${esc(n)}</button>`).join("");
+  $("chips").innerHTML = (S.mode === "shared" ? `<button class="chip" id="reload" ${S.loading ? "disabled" : ""}>${S.loading ? "読み込み中…" : "↻ 更新"}</button>` : "") +
+    names.map(n => `<button class="chip ${n === S.filter ? "on" : ""}" data-f="${esc(n)}">${esc(n)}</button>`).join("");
   $("cat-list").innerHTML = cats.map(c => `<option value="${esc(c)}">`).join("");
 }
 
@@ -336,6 +365,7 @@ document.addEventListener("click", e => {
     S.confirmDel = null; deletePost(pid); return;
   }
   if (t.id === "seed") { seedSamples(t); return; }
+  if (t.id === "reload") { loadPosts(); return; }
   if (t.id === "copyid") {
     navigator.clipboard?.writeText(S.uid).then(() => { t.textContent = "コピーしました"; }, () => {
       const r = document.createRange(); r.selectNodeContents($("myid")); getSelection().removeAllRanges(); getSelection().addRange(r);
@@ -381,7 +411,7 @@ $("pform").addEventListener("submit", async e => {
     for (const id of ["f-q", "f-c1", "f-c2", "f-c3", "f-c4", "f-exp"]) $(id).value = "";
     document.querySelectorAll('input[name="f-ans"]').forEach(r => { r.checked = false; });
     msg.className = "msg ok"; msg.textContent = "投稿しました。「問題」タブのいちばん上に表示されています。";
-    S.filter = "すべて";
+    S.filter = "すべて"; renderFeed();
   } catch (e2) {
     msg.className = "msg err"; msg.textContent = "投稿できませんでした（" + (e2.code || "error") + "）。時間をおいてもう一度お試しください。";
   } finally { renderPostForm(); }
