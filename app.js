@@ -133,9 +133,14 @@ async function deletePost(pid) {
   catch (e) { S.error = "削除できませんでした。"; renderNotice(); }
 }
 
+function missingSamples() {
+  const have = new Set(S.posts.filter(p => p.official).map(p => p.question));
+  return (typeof QUESTIONS !== "undefined" ? QUESTIONS : []).filter(q => !have.has(q.question));
+}
+
 async function seedSamples(btn) {
   btn.disabled = true; btn.textContent = "登録しています…";
-  const qs = (typeof QUESTIONS !== "undefined" ? QUESTIONS : []);
+  const qs = missingSamples();
   try {
     for (const q of qs) {   // 1問ずつ登録して、Q1 が一番古くなるようにする
       await createPost({ authorName: TEACHER_NAME, category: q.category, question: q.question,
@@ -167,9 +172,10 @@ function renderNotice() {
   if (S.mode === "local" && firebaseConfig && S.loaded) parts.push("共有サーバーにつながりませんでした。この端末だけのモードで動いています。");
   if (S.error) parts.push(S.error);
   let html = parts.map(p => `<div class="notice">${esc(p)}</div>`).join("");
-  if (S.mode === "shared" && S.isTeacher && S.loaded && !S.posts.some(p => p.official)) {
-    html += `<div class="notice">先生として登録されています。まだ先生の問題がありません。
-      <div class="seed"><button class="primary" id="seed">サンプル問題（${(typeof QUESTIONS !== "undefined" ? QUESTIONS.length : 0)}問）を登録</button></div></div>`;
+  const missing = S.mode === "shared" && S.isTeacher && S.loaded ? missingSamples().length : 0;
+  if (missing) {
+    html += `<div class="notice">questions.js に、まだ登録していない問題が ${missing} 問あります（先生にだけ表示）。
+      <div class="seed"><button class="primary" id="seed">${missing}問を登録する</button></div></div>`;
   }
   $("notice").innerHTML = html;
 }
@@ -197,13 +203,22 @@ function visible() {
   });
 }
 
+// 選択肢の並び順を人ごと・問題ごとにシャッフル（正解の位置の偏りをなくす）
+function choiceOrder(q) {
+  let h = 2166136261;
+  for (const ch of q.id + "|" + (S.uid || store.get("math-quiz-seed") || "")) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const order = [1, 2, 3, 4];
+  for (let i = 3; i > 0; i--) { h = Math.imul(h ^ (h >>> 15), 2246822507) ^ i; const j = (h >>> 0) % (i + 1); [order[i], order[j]] = [order[j], order[i]]; }
+  return order;
+}
+
 function postHTML(q) {
   const last = S.my.last[q.id];
   const shown = last && !S.retry.has(q.id);
   const c = q.counts || null;
   const total = c ? (c.total || 0) : 0;
-  const choices = q.choices.map((txt, i) => {
-    const n = i + 1;
+  const choices = choiceOrder(q).map(n => {
+    const txt = q.choices[n - 1];
     let cls = "", right = "", width = 0;
     if (shown) {
       width = total ? (c[String(n)] || 0) / total * 100 : 0;
@@ -367,6 +382,7 @@ $("pform").addEventListener("submit", async e => {
 
 // ---------------- 起動 ----------------
 (async () => {
+  if (!store.get("math-quiz-seed")) store.set("math-quiz-seed", Math.random().toString(36).slice(2));
   S.my = loadLocalStats();
   renderAll();
   if (firebaseConfig) {
