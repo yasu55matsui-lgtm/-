@@ -1,0 +1,70 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:"Noto Sans JP",sans-serif; color:#16202b; }
+.page { width:210mm; height:297mm; padding:16mm 16mm 12mm; display:flex; flex-direction:column; gap:7mm; }
+header { display:flex; align-items:center; gap:5mm; border-bottom:1.2mm solid #1a73e8; padding-bottom:4mm; }
+.ball { width:16mm; height:16mm; border-radius:50%; background:#1a73e8; color:#fff; display:grid; place-items:center; font-size:9mm; }
+h1 { font-size:11mm; margin:0; font-weight:900; letter-spacing:.5mm; }
+.sub { font-size:4.2mm; color:#4a5866; margin-top:1mm; }
+.top { display:grid; grid-template-columns:62mm 1fr; gap:8mm; align-items:center; }
+.qr { border:0.6mm solid #d4dae0; border-radius:4mm; padding:4mm; text-align:center; }
+.qr svg { width:100%; height:auto; display:block; }
+.qr .cap { font-size:3.6mm; margin-top:2mm; font-weight:700; }
+.url { font-size:5mm; font-weight:700; background:#eef3fb; border-radius:3mm; padding:3mm 4mm; word-break:break-all; }
+.feat { margin:4mm 0 0; padding:0; list-style:none; display:grid; gap:2.2mm; font-size:4.1mm; }
+.feat b { color:#1a73e8; }
+h2 { font-size:5.4mm; margin:0 0 3mm; display:flex; align-items:center; gap:2.5mm; }
+h2 .n { background:#16202b; color:#fff; border-radius:50%; width:7.5mm; height:7.5mm; display:grid; place-items:center; font-size:4.2mm; }
+.steps { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+.box { border:0.4mm solid #d4dae0; border-radius:3mm; padding:4mm 5mm; }
+.box h3 { margin:0 0 2mm; font-size:4.4mm; }
+.box ol { margin:0; padding-left:5mm; font-size:3.9mm; line-height:1.7; }
+.warn { background:#fff6e5; border-left:1.5mm solid #e8a100; padding:3mm 5mm; font-size:3.9mm; line-height:1.7; border-radius:0 3mm 3mm 0; }
+.rules { margin:0; padding-left:5mm; font-size:3.9mm; line-height:1.8; }
+footer { margin-top:auto; font-size:3.4mm; color:#6b7782; border-top:0.3mm solid #d4dae0; padding-top:3mm; }
+</style></head><body><div class="page">
+<header><div class="ball">⚾</div><div><h1>数学4択クイズ</h1><div class="sub">スマホ・タブレットで、すきま時間に数学の4択問題を解こう</div></div></header>
+
+<div class="top">
+  <div class="qr"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 31 31" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h31v31H0z"/><path stroke="#000000" d="M1 1.5h7m4 0h3m4 0h3m1 0h7M1 2.5h1m5 0h1m2 0h1m4 0h4m4 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h1m2 0h2m1 0h1m1 0h1m3 0h1m1 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m3 0h2m3 0h1m1 0h1m2 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h2m5 0h2m1 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h9m3 0h1m1 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h1M1 9.5h1m1 0h5m2 0h2m1 0h1m4 0h1m1 0h1m2 0h5M1 10.5h3m4 0h1m3 0h3m2 0h4m2 0h1m1 0h1m3 0h1M2 11.5h1m2 0h1m1 0h1m2 0h1m3 0h4m3 0h1m2 0h2M3 12.5h1m2 0h1m3 0h3m1 0h1m1 0h1m7 0h3m1 0h1M1 13.5h3m2 0h2m1 0h1m2 0h2m1 0h1m2 0h3m1 0h1m1 0h1m1 0h2M1 14.5h2m1 0h1m1 0h1m2 0h2m2 0h1m3 0h5m1 0h3m3 0h1M3 15.5h2m2 0h2m1 0h4m2 0h1m1 0h1m2 0h1m2 0h1m1 0h2M1 16.5h2m2 0h2m1 0h1m2 0h3m1 0h1m1 0h1m1 0h1m1 0h1m3 0h1m2 0h1M1 17.5h1m5 0h1m1 0h2m1 0h2m4 0h1m2 0h1m2 0h1m1 0h2M1 18.5h1m1 0h4m1 0h2m1 0h2m1 0h2m3 0h7m1 0h1m1 0h1M1 19.5h1m1 0h1m3 0h5m2 0h3m1 0h1m2 0h1m1 0h3m1 0h1M1 20.5h1m3 0h1m2 0h2m4 0h1m5 0h1m4 0h1m2 0h1M1 21.5h1m1 0h1m1 0h1m1 0h2m2 0h2m2 0h2m1 0h1m2 0h5m1 0h3M9 22.5h1m1 0h1m1 0h1m3 0h5m3 0h5M1 23.5h7m4 0h1m3 0h2m1 0h3m1 0h1m1 0h3M1 24.5h1m5 0h1m1 0h2m4 0h3m2 0h2m3 0h1m2 0h2M1 25.5h1m1 0h3m1 0h1m1 0h5m2 0h3m2 0h5m1 0h1M1 26.5h1m1 0h3m1 0h1m1 0h1m4 0h2m1 0h1m8 0h4M1 27.5h1m1 0h3m1 0h1m1 0h1m4 0h3m3 0h1m1 0h7M1 28.5h1m5 0h1m2 0h2m1 0h1m1 0h2m2 0h4m1 0h3m1 0h1M1 29.5h7m1 0h1m4 0h2m2 0h1m1 0h1m5 0h2"/></svg>
+<div class="cap">カメラで読み取ってね</div></div>
+  <div>
+    <div class="url">https://yasu55matsui-lgtm.github.io/-/</div>
+    <ul class="feat">
+      <li><b>無料</b>・アカウント登録なし・アプリのインストールなし</li>
+      <li>数学I・A・II・B・C の <b>183問</b>（解説つき）</li>
+      <li>答えるとすぐ正解・不正解と、<b>みんなの回答の割合</b>がわかる</li>
+      <li>「成績」タブで <b>通算・最近100問・単元ごと</b>の正答率をチェック</li>
+      <li>「投稿する」タブで、<b>自分で作った問題</b>をみんなに出題できる</li>
+    </ul>
+  </div>
+</div>
+
+<section><h2><span class="n">1</span>ホーム画面に追加しよう</h2>
+<div class="steps">
+  <div class="box"><h3>iPhone・iPad（Safari）</h3><ol>
+    <li>QRコードを読み取って Safari で開く</li>
+    <li>共有ボタン（□に↑）をタップ</li>
+    <li>「ホーム画面に追加」→「追加」</li></ol></div>
+  <div class="box"><h3>Android（Chrome）</h3><ol>
+    <li>QRコードを読み取って Chrome で開く</li>
+    <li>右上の「︙」をタップ</li>
+    <li>「ホーム画面に追加」→「追加」</li></ol></div>
+</div></section>
+
+<div class="warn"><b>大事：毎回、ホーム画面のアイコンから開いてください。</b><br>
+成績はその端末のその開き方に記録されます。ブラウザで開いたりアイコンで開いたりを混ぜると、成績が別々になります。ブラウザの履歴やデータを消すと、成績も消えます。</div>
+
+<section><h2><span class="n">2</span>使うときの約束</h2>
+<ul class="rules">
+  <li>ニックネームに<b>本名・クラス・出席番号などの個人情報を書かない</b></li>
+  <li>投稿するのは<b>数学の問題だけ</b>。人を傷つける内容やふざけた投稿はしない</li>
+  <li>投稿する前に、正解と解説が合っているかをもう一度確かめる</li>
+  <li>不適切な投稿は先生が削除します</li>
+</ul></section>
+
+<footer>うまく開けないときは、URL の最後の「/-/」まで入っているか確認してください。　野球好きな数学教師</footer>
+</div></body></html>

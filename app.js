@@ -365,7 +365,7 @@ document.addEventListener("click", e => {
     S.confirmDel = null; deletePost(pid); return;
   }
   if (t.id === "seed") { seedSamples(t); return; }
-  if (t.id === "reload") { loadPosts(); return; }
+  if (t.id === "reload") { location.reload(); return; }   // アプリ全体を最新にする（問題の追加もすぐ反映）
   if (t.id === "copyid") {
     navigator.clipboard?.writeText(S.uid).then(() => { t.textContent = "コピーしました"; }, () => {
       const r = document.createRange(); r.selectNodeContents($("myid")); getSelection().removeAllRanges(); getSelection().addRange(r);

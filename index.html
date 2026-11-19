@@ -183,7 +183,20 @@
     </form>
   </section>
 </main>
-<script src="questions.js"></script>
-<script type="module" src="app.js"></script>
+<script>
+  // 問題やプログラムを更新したとき、ホーム画面のアプリでもすぐ反映されるように
+  // 1分ごとに変わる番号を付けて読み込む（古い版を使い回さない）
+  (function () {
+    var v = Math.floor(Date.now() / 60000);
+    var q = document.createElement("script");
+    q.src = "questions.js?v=" + v;
+    q.onload = q.onerror = function () {
+      var a = document.createElement("script");
+      a.type = "module"; a.src = "app.js?v=" + v;
+      document.body.appendChild(a);
+    };
+    document.body.appendChild(q);
+  })();
+</script>
 </body>
 </html>
