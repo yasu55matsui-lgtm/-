@@ -5,7 +5,12 @@ import { firebaseConfig, TEACHER_NAME } from "./firebase-config.js";
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 const LOCAL_STATS = "math-quiz-stats-v3";
 const LOCAL_NAME = "math-quiz-name";
-const SYMBOLS = ["²", "³", "√", "π", "θ", "°", "≦", "≧", "≠", "−", "×", "÷", "±", "∞", "·", "₂", "ₙ", "∠", "△"];
+// 記号ボタン（TeX の書き方は $ で囲む）
+const SYMBOLS = [
+  ["分数", "$\\dfrac{1}{2}$"], ["累乗", "$x^{2}$"], ["ルート", "$\\sqrt{3}$"], ["添字", "$a_{n}$"],
+  ["ベクトル", "$\\vec{a}$"], ["π", "$\\pi$"], ["θ", "$\\theta$"], ["≦", "$\\leqq$"], ["≧", "$\\geqq$"],
+  ["×", "$\\times$"], ["±", "$\\pm$"], ["∫", "$\\int_{0}^{1}$"], ["Σ", "$\\sum_{k=1}^{n}$"], ["log", "$\\log_{2}$"],
+];
 
 const S = {
   mode: "local",          // "local" | "shared"
@@ -92,7 +97,15 @@ async function initShared() {
 // 常時接続にすると、誰かが答えるたびに全員の画面で読み込みが発生し、無料枠を使い切りやすいため。
 function toPost(d) {
   const v = d.data({ serverTimestamps: "estimate" });
-  return { ...v, id: d.id, at: v.at && v.at.toMillis ? v.at.toMillis() : Date.now() };
+  const p = { ...v, id: d.id, at: v.at && v.at.toMillis ? v.at.toMillis() : Date.now() };
+  // 先生の問題（q01, q02, …）は questions.js の最新の文面で表示する。
+  // 選択肢の順番と正解番号は変えない約束なので、回答の集計はそのまま使える
+  const m = /^q(\d+)$/.exec(p.id);
+  const src = m && p.official && typeof QUESTIONS !== "undefined" ? QUESTIONS[Number(m[1]) - 1] : null;
+  if (src && src.answer === p.answer && Array.isArray(src.choices) && src.choices.length === 4) {
+    Object.assign(p, { category: src.category, question: src.question, choices: src.choices, explanation: src.explanation || "" });
+  }
+  return p;
 }
 
 async function loadPosts() {
@@ -293,18 +306,25 @@ function postHTML(q) {
   </article>`;
 }
 
+// $…$ を数式として表示（KaTeX が読み込めていなければそのまま）
+function renderMath(el) {
+  if (!el || typeof window.renderMathInElement !== "function") return;
+  try { window.renderMathInElement(el, { delimiters: [{ left: "$", right: "$", display: false }], throwOnError: false }); } catch (e) {}
+}
+
 function renderFeed() {
   renderChips();
   if (!S.loaded) { $("feed").innerHTML = `<div class="empty">問題を読み込んでいます…</div>`; return; }
   const list = visible();
   $("feed").innerHTML = list.length ? list.map(postHTML).join("")
     : `<div class="empty">${!S.posts.length ? "まだ問題がありません。" : S.filter === "まちがえた問題" ? "まちがえた問題はありません。" : "この条件の問題はありません。"}</div>`;
+  renderMath($("feed"));
 }
 
 function renderOne(pid) {
   const el = document.getElementById("p-" + pid);
   const q = S.posts.find(x => x.id === pid);
-  if (el && q) el.outerHTML = postHTML(q); else renderFeed();
+  if (el && q) { el.outerHTML = postHTML(q); renderMath(document.getElementById("p-" + pid)); } else renderFeed();
 }
 
 function renderStats() {
@@ -384,10 +404,23 @@ document.addEventListener("click", e => {
     const s = el.selectionStart ?? el.value.length, en = el.selectionEnd ?? el.value.length;
     el.value = el.value.slice(0, s) + t.dataset.sym + el.value.slice(en);
     el.focus(); el.setSelectionRange(s + t.dataset.sym.length, s + t.dataset.sym.length);
+    renderPreview();
   }
 });
+function renderPreview() {
+  const v = id => $(id).value.trim();
+  const ans = Number((document.querySelector('input[name="f-ans"]:checked') || {}).value || 0);
+  const choices = [1, 2, 3, 4].map(n => `<div class="pc ${n === ans ? "ok" : ""}">${esc(v("f-c" + n)) || `<span class="hint">選択肢 ${n}</span>`}</div>`).join("");
+  $("f-preview").innerHTML = `<div style="white-space:pre-wrap">${esc(v("f-q")) || '<span class="hint">問題文</span>'}</div>${choices}` +
+    (v("f-exp") ? `<div class="exp" style="margin-top:8px"><b>解説</b>${esc(v("f-exp"))}</div>` : "");
+  renderMath($("f-preview"));
+}
+let previewTimer = null;
+$("pform").addEventListener("input", () => { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 250); });
+$("pform").addEventListener("change", renderPreview);
+
 document.addEventListener("focusin", e => { if (e.target.matches("#pform input[type=text], #pform textarea")) S.lastField = e.target; });
-$("symbols").innerHTML = SYMBOLS.map(s => `<button type="button" data-sym="${s}">${s}</button>`).join("");
+$("symbols").innerHTML = SYMBOLS.map(([label, s]) => `<button type="button" data-sym="${esc(s)}">${esc(label)}</button>`).join("");
 $("symbols").addEventListener("mousedown", e => e.preventDefault());
 
 $("pform").addEventListener("submit", async e => {
@@ -411,6 +444,7 @@ $("pform").addEventListener("submit", async e => {
     for (const id of ["f-q", "f-c1", "f-c2", "f-c3", "f-c4", "f-exp"]) $(id).value = "";
     document.querySelectorAll('input[name="f-ans"]').forEach(r => { r.checked = false; });
     msg.className = "msg ok"; msg.textContent = "投稿しました。「問題」タブのいちばん上に表示されています。";
+    renderPreview();
     S.filter = "すべて"; renderFeed();
   } catch (e2) {
     msg.className = "msg err"; msg.textContent = "投稿できませんでした（" + (e2.code || "error") + "）。時間をおいてもう一度お試しください。";
@@ -422,6 +456,7 @@ $("pform").addEventListener("submit", async e => {
   if (!store.get("math-quiz-seed")) store.set("math-quiz-seed", Math.random().toString(36).slice(2));
   S.my = loadLocalStats();
   renderAll();
+  renderPreview();
   if (firebaseConfig) {
     try { await initShared(); return; }
     catch (e) { console.error(e); }

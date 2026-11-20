@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="数学クイズ">
 <title>数学4択クイズ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
 <style>
   /* Layout: YouTubeのコミュニティ投稿風の1カラムフィード + 上部タブ（問題 / 成績 / 投稿） */
@@ -125,6 +126,12 @@
   .idbox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
   .idbox code { font-size: 13px; background: var(--box); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
   .seed { margin-top: 12px; }
+  .hint code { background: var(--box); padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  .preview { border: 1px dashed var(--line); border-radius: 8px; padding: 12px 14px; min-height: 48px; font-size: 15px; overflow-x: auto; }
+  .preview .pc { border: 1px solid var(--line); padding: 6px 10px; margin: 6px 0; }
+  .preview .pc.ok { border-color: var(--ok); color: var(--ok); }
+  .katex { font-size: 1.08em; }
+  .qtext .katex-display, .exp .katex-display { margin: .4em 0; }
 </style>
 </head>
 <body>
@@ -165,7 +172,7 @@
         <textarea id="f-q" placeholder="例：y = x² − 4x + 3 の頂点の座標は？" maxlength="600"></textarea>
       </label>
       <div>
-        <div class="hint" style="margin-bottom:6px">記号を入力欄に挿入</div>
+        <div class="hint" style="margin-bottom:6px">数式は <code>$</code> で囲むときれいに表示されます（例：<code>$\dfrac{1}{2}$</code> → 分数、<code>$x^2$</code> → 累乗、<code>$\sqrt{3}$</code> → ルート）。ボタンで入力欄に挿入できます。</div>
         <div class="symbols" id="symbols"></div>
       </div>
       <div style="display:grid; gap:8px">
@@ -178,6 +185,10 @@
       <label>解説
         <textarea id="f-exp" placeholder="正解になる理由を書きましょう" maxlength="1000"></textarea>
       </label>
+      <div>
+        <div style="font-size:14px; font-weight:500; margin-bottom:6px">プレビュー <span class="hint">（投稿したときの見え方）</span></div>
+        <div class="preview" id="f-preview"></div>
+      </div>
       <button class="primary" id="f-submit" type="submit">投稿する</button>
       <div class="msg" id="f-msg" role="status"></div>
     </form>
@@ -188,14 +199,18 @@
   // 1分ごとに変わる番号を付けて読み込む（古い版を使い回さない）
   (function () {
     var v = Math.floor(Date.now() / 60000);
-    var q = document.createElement("script");
-    q.src = "questions.js?v=" + v;
-    q.onload = q.onerror = function () {
-      var a = document.createElement("script");
-      a.type = "module"; a.src = "app.js?v=" + v;
-      document.body.appendChild(a);
-    };
-    document.body.appendChild(q);
+    // 数式表示（KaTeX）→ 問題 → アプリ本体 の順に読み込む。KaTeX が読めなくてもアプリは動く
+    var files = [
+      "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js",
+      "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js",
+      "questions.js?v=" + v
+    ];
+    (function next() {
+      var s = document.createElement("script");
+      if (!files.length) { s.type = "module"; s.src = "app.js?v=" + v; document.body.appendChild(s); return; }
+      s.src = files.shift(); s.onload = s.onerror = next;
+      document.body.appendChild(s);
+    })();
   })();
 </script>
 </body>
