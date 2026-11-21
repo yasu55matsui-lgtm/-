@@ -149,6 +149,9 @@ function answer(pid, n) {
   c.t++; if (ok) c.c++;
   S.retry.delete(pid);
 
+  // ランキングに数えるかどうか（参加中のときだけ表示に使う）
+  S.rankNote = S.rankNote || {};
+  if (S.lb) S.rankNote[pid] = m.counted[pid] ? "skip" : "count";
   // みんなの集計には1人1問につき最初の回答だけ
   if (S.mode === "shared" && !m.counted[pid]) {
     m.counted[pid] = 1;
@@ -160,7 +163,8 @@ function answer(pid, n) {
     const lb = S.lb;
     if (lb) b.update(doc(S.fb.db, "leaderboard", S.uid), { answered: increment(1), correct: increment(ok ? 1 : 0), last: pid, at: S.fb.fs.serverTimestamp() });
     // すでに回答済み（記録をリセットした等）のときは拒否されるだけ。どちらでも最新の割合を読み直す
-    b.commit().then(() => { if (lb) { lb.answered++; if (ok) lb.correct++; S.rankAt = 0; } }, () => {}).then(() => refreshPost(pid));
+    b.commit().then(() => { if (lb) { lb.answered++; if (ok) lb.correct++; S.rankAt = 0; } },
+      () => { if (lb) { S.rankNote[pid] = "fail"; renderOne(pid); } }).then(() => refreshPost(pid));
   } else if (S.mode === "shared") {
     refreshPost(pid);
   }
@@ -228,13 +232,13 @@ async function joinRanking(name) {
     else { await setDoc(ref, { name, answered: 0, correct: 0, at: serverTimestamp() }); S.lb = { name, answered: 0, correct: 0 }; }
     S.lbMsg = ""; S.lbEdit = false; S.lbDraft = undefined;
   } catch (e) { S.lbMsg = "登録できませんでした（" + (e.code || "error") + "）。先生に Firebase のルールの更新を確認してもらってください。"; }
-  S.rankAt = 0; renderStats(); loadRanking(true);
+  S.rankAt = 0; renderStats(); renderChips(); loadRanking(true);
 }
 
 async function removeRanking(uid) {
   const { doc, deleteDoc } = S.fb.fs;
   try { await deleteDoc(doc(S.fb.db, "leaderboard", uid)); if (uid === S.uid) S.lb = null; } catch (e) { S.lbMsg = "削除できませんでした。"; }
-  S.confirmRank = null; S.rankAt = 0; renderStats(); loadRanking(true);
+  S.confirmRank = null; S.rankAt = 0; renderStats(); renderChips(); loadRanking(true);
 }
 
 function rankingHTML() {
@@ -253,6 +257,7 @@ function rankingHTML() {
       }).join("")}</ol>`;
   const join = me && !S.lbEdit
     ? `<div class="hint">「${esc(me.name)}」で参加中：${me.correct}/${me.answered}問正解${me.answered < RANK_MIN ? `（あと${RANK_MIN - me.answered}問でランキングに載ります）` : ""}
+        <br>ランキングに数えられるのは、まだ一度も解いていない問題です（残り <b>${S.posts.filter(q => !S.my.counted[q.id]).length}</b> 問）。「問題」タブの「ランキング対象」ボタンで絞り込めます。
         <br><button class="link" id="rank-rename">名前を変える</button>　<button class="link danger" id="rank-leave">${S.confirmRank === S.uid ? "本当に参加をやめる（成績も消えます）" : "参加をやめる"}</button></div>`
     : `<div class="joinrow"><input type="text" id="rank-name" maxlength="20" placeholder="ランキングに表示する名前" value="${esc(S.lbDraft ?? (me ? me.name : store.get(LOCAL_NAME) || ""))}">
         <button class="primary" id="rank-join">${me ? "名前を変える" : "参加する"}</button></div>
@@ -300,7 +305,7 @@ const OLD_UNIT_NAMES = { "微分・積分": "微分・積分（数学Ⅱ）" };
 
 function renderChips() {
   const cats = [...new Set(S.posts.map(q => q.category).filter(Boolean))].sort((a, b) => unitRank(a) - unitRank(b));
-  const names = ["すべて", ...cats, "まちがえた問題", "まだ解いていない"];
+  const names = ["すべて", ...(S.lb ? ["ランキング対象"] : []), ...cats, "まちがえた問題", "まだ解いていない"];
   if (S.mode === "shared") names.push("先生の問題", "みんなの投稿");
   if (!names.includes(S.filter)) S.filter = "すべて";
   $("chips").innerHTML = (S.mode === "shared" ? `<button class="chip" id="reload" ${S.loading ? "disabled" : ""}>${S.loading ? "読み込み中…" : "↻ 更新"}</button>` : "") +
@@ -321,6 +326,7 @@ function visible() {
       case "すべて": return true;
       case "まちがえた問題": return last && last !== q.answer;
       case "まだ解いていない": return !last;
+      case "ランキング対象": return !S.my.counted[q.id];
       case "先生の問題": return q.official;
       case "みんなの投稿": return !q.official;
       default: return q.category === S.filter;
@@ -362,7 +368,11 @@ function postHTML(q) {
   let after;
   if (shown) {
     const ok = last === q.answer;
-    after = `<div class="count"><span class="result ${ok ? "ok" : "ng"}">${ok ? "正解！" : "不正解"}</span>　${countLine}</div>
+    const rn = S.lb && S.rankNote && S.rankNote[q.id];
+    const rankLine = rn === "count" ? `<div class="hint rk">ランキングに記録しました（${S.lb.correct}/${S.lb.answered}問正解）</div>`
+      : rn === "skip" ? `<div class="hint rk">※ 前に解いたことがある問題なので、ランキングには数えません。「ランキング対象」から、まだ解いていない問題を選んでください。</div>`
+      : rn === "fail" ? `<div class="msg err rk">ランキングに記録できませんでした。通信状況を確認してください。</div>` : "";
+    after = `<div class="count"><span class="result ${ok ? "ok" : "ng"}">${ok ? "正解！" : "不正解"}</span>　${countLine}</div>${rankLine}
       <div class="exp"><b>解説</b>${esc(q.explanation || "（解説なし）")}</div>
       <div class="actions">${delBtn}<button class="link" data-retry="${esc(q.id)}">もう一度解く</button></div>`;
   } else {
