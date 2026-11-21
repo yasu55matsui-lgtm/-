@@ -221,7 +221,7 @@ async function loadRanking(force) {
     S.rankAt = Date.now(); S.rankErr = "";
   } catch (e) { S.rankErr = "ランキングを読み込めませんでした（" + (e.code || "error") + "）。"; }
   S.rankLoading = false;
-  if (S.tab === "stats") renderStats();
+  renderRank();
 }
 
 async function joinRanking(name) {
@@ -232,38 +232,77 @@ async function joinRanking(name) {
     else { await setDoc(ref, { name, answered: 0, correct: 0, at: serverTimestamp() }); S.lb = { name, answered: 0, correct: 0 }; }
     S.lbMsg = ""; S.lbEdit = false; S.lbDraft = undefined;
   } catch (e) { S.lbMsg = "登録できませんでした（" + (e.code || "error") + "）。先生に Firebase のルールの更新を確認してもらってください。"; }
-  S.rankAt = 0; renderStats(); renderChips(); loadRanking(true);
+  S.rankAt = 0; renderRank(); renderChips(); loadRanking(true);
 }
 
 async function removeRanking(uid) {
   const { doc, deleteDoc } = S.fb.fs;
   try { await deleteDoc(doc(S.fb.db, "leaderboard", uid)); if (uid === S.uid) S.lb = null; } catch (e) { S.lbMsg = "削除できませんでした。"; }
-  S.confirmRank = null; S.rankAt = 0; renderStats(); renderChips(); loadRanking(true);
+  S.confirmRank = null; S.rankAt = 0; renderRank(); renderChips(); loadRanking(true);
 }
 
-function rankingHTML() {
+// 順位をつける（正答率が同じで正解数も同じなら同じ順位）
+function rankedList() {
+  const list = S.rank || [];
+  list.forEach((x, i) => {
+    const prev = list[i - 1], same = prev && prev.correct * x.answered === x.correct * prev.answered && prev.correct === x.correct;
+    x.place = same ? prev.place : i + 1;
+  });
+  return list;
+}
+
+function rankRowHTML(x) {
+  const del = S.isTeacher ? `<button class="link danger" data-rankdel="${esc(x.id)}">${S.confirmRank === x.id ? "本当に外す" : "外す"}</button>` : "";
+  return `<li class="${x.id === S.uid ? "me" : ""}"><span class="pl pl${x.place}">${x.place}</span><span class="nm">${esc(x.name)}${x.id === S.uid ? '<span class="tag">あなた</span>' : ""}</span>
+    <span class="rt">${(x.correct / x.answered * 100).toFixed(1)}%</span><span class="ct">${x.correct}/${x.answered}問</span>${del}</li>`;
+}
+
+// 「ランキング」タブ
+function rankViewHTML() {
   if (S.mode !== "shared") return `<h2>ランキング</h2><div class="hint">ランキングは共有機能（Firebase）を設定すると使えます。</div>`;
-  const rows = (S.rank || []).slice(0, 10);
-  const me = S.lb;
+  const list = rankedList(), top = list.slice(0, 10), me = S.lb;
+  const mine = list.find(x => x.id === S.uid);
   const table = S.rankErr ? `<div class="msg err">${esc(S.rankErr)}</div>`
     : !S.rank ? `<div class="hint">読み込んでいます…</div>`
-    : !rows.length ? `<div class="hint">まだランキングに載っている人はいません（${RANK_MIN}問以上答えると載ります）。</div>`
-    : `<ol class="rank">${rows.map((x, i) => {
-        const prev = rows[i - 1], same = prev && prev.correct * x.answered === x.correct * prev.answered && prev.correct === x.correct;
-        x.place = same ? prev.place : i + 1;
-        const del = S.isTeacher ? `<button class="link danger" data-rankdel="${esc(x.id)}">${S.confirmRank === x.id ? "本当に外す" : "外す"}</button>` : "";
-        return `<li class="${x.id === S.uid ? "me" : ""}"><span class="pl pl${x.place}">${x.place}</span><span class="nm">${esc(x.name)}${x.id === S.uid ? '<span class="tag">あなた</span>' : ""}</span>
-          <span class="rt">${(x.correct / x.answered * 100).toFixed(1)}%</span><span class="ct">${x.correct}/${x.answered}問</span>${del}</li>`;
-      }).join("")}</ol>`;
-  const join = me && !S.lbEdit
-    ? `<div class="hint">「${esc(me.name)}」で参加中：${me.correct}/${me.answered}問正解${me.answered < RANK_MIN ? `（あと${RANK_MIN - me.answered}問でランキングに載ります）` : ""}
-        <br>ランキングに数えられるのは、まだ一度も解いていない問題です（残り <b>${S.posts.filter(q => !S.my.counted[q.id]).length}</b> 問）。「問題」タブの「ランキング対象」ボタンで絞り込めます。
-        <br><button class="link" id="rank-rename">名前を変える</button>　<button class="link danger" id="rank-leave">${S.confirmRank === S.uid ? "本当に参加をやめる（成績も消えます）" : "参加をやめる"}</button></div>`
-    : `<div class="joinrow"><input type="text" id="rank-name" maxlength="20" placeholder="ランキングに表示する名前" value="${esc(S.lbDraft ?? (me ? me.name : store.get(LOCAL_NAME) || ""))}">
-        <button class="primary" id="rank-join">${me ? "名前を変える" : "参加する"}</button></div>
-       <div class="hint">本名・クラス・出席番号は使わないでください。参加すると、名前と成績が全員に表示されます。参加したあとに<b>初めて解いた問題</b>の、<b>1回目の答え</b>で集計します。</div>`;
-  return `<h2>ランキング <span class="hint">（${RANK_MIN}問以上答えた人のトップ10・正答率順）</span> <button class="link" id="rank-reload">↻</button></h2>
-    ${table}${S.lbMsg ? `<div class="msg err">${esc(S.lbMsg)}</div>` : ""}${join}`;
+    : !top.length ? `<div class="empty">まだランキングに載っている人はいません。<br>${RANK_MIN}問以上答えると載ります。</div>`
+    : `<ol class="rank">${top.map(rankRowHTML).join("")}</ol>` + (mine && mine.place > 10 ? `<ol class="rank">${rankRowHTML(mine)}</ol>` : "");
+  const status = !me ? `<div class="notice">ランキングにエントリーすると、ここにあなたの順位も表示されます。<button class="link" data-tab="entry">ランキングエントリーへ →</button></div>`
+    : mine ? `<div class="mypos">あなたは <b>${mine.place}位</b>（${list.length}人中）　正答率 ${(mine.correct / mine.answered * 100).toFixed(1)}%</div>`
+    : `<div class="notice">「${esc(me.name)}」でエントリー中：${me.correct}/${me.answered}問正解。あと <b>${RANK_MIN - me.answered}</b> 問答えるとランキングに載ります。<button class="link" id="go-target">ランキング対象の問題を解く →</button></div>`;
+  return `<div class="rankhead"><h2>ランキング</h2><button class="link" id="rank-reload">↻ 更新</button></div>
+    <div class="hint" style="margin-bottom:10px">${RANK_MIN}問以上答えた人のトップ10（正答率の高い順。同じなら正解数の多い順）</div>
+    ${status}${table}${S.lbMsg ? `<div class="msg err">${esc(S.lbMsg)}</div>` : ""}`;
+}
+
+// 「ランキングエントリー」タブ
+function entryViewHTML() {
+  if (S.mode !== "shared") return `<h2>ランキングエントリー</h2><div class="hint">ランキングは共有機能（Firebase）を設定すると使えます。</div>`;
+  const me = S.lb, remain = S.posts.filter(q => !S.my.counted[q.id]).length;
+  const form = `<div class="joinrow"><input type="text" id="rank-name" maxlength="20" placeholder="ランキングに表示する名前" value="${esc(S.lbDraft ?? (me ? me.name : store.get(LOCAL_NAME) || ""))}">
+      <button class="primary" id="rank-join">${me ? "名前を変える" : "エントリーする"}</button></div>`;
+  const body = me && !S.lbEdit
+    ? `<div class="entrycard">
+        <div class="hint">エントリー中の名前</div><div class="ename">${esc(me.name)}</div>
+        <div class="estats"><div><b>${me.correct}</b>/${me.answered}<span>問正解</span></div><div><b>${me.answered ? (me.correct / me.answered * 100).toFixed(1) : "–"}</b><span>%</span></div><div><b>${remain}</b><span>問 残り</span></div></div>
+        ${me.answered < RANK_MIN ? `<div class="hint">あと <b>${RANK_MIN - me.answered}</b> 問答えるとランキングに載ります。</div>` : `<div class="hint">ランキングに載っています。「ランキング」タブで順位を確認できます。</div>`}
+        <button class="primary" id="go-target" style="margin-top:12px">ランキング対象の問題を解く</button>
+        <div style="margin-top:10px"><button class="link" id="rank-rename">名前を変える</button>　<button class="link danger" id="rank-leave">${S.confirmRank === S.uid ? "本当にエントリーをやめる（成績も消えます）" : "エントリーをやめる"}</button></div>
+      </div>`
+    : form;
+  return `<h2>ランキングエントリー</h2>
+    ${S.lbMsg ? `<div class="msg err">${esc(S.lbMsg)}</div>` : ""}${body}
+    <h2>ルール</h2>
+    <ul class="rules">
+      <li>エントリーしたあとに<b>初めて解いた問題</b>の、<b>1回目の答え</b>で集計します（解き直しは数えません）。</li>
+      <li>${RANK_MIN}問以上答えるとランキングに載ります。正答率の高い順に、トップ10が表示されます。</li>
+      <li>名前と成績は全員に表示されます。<b>本名・クラス・出席番号は使わないでください。</b></li>
+      <li>不適切な名前は、先生がランキングから外すことがあります。</li>
+    </ul>`;
+}
+
+function renderRank() {
+  if (S.tab === "rank") $("v-rank").innerHTML = rankViewHTML();
+  if (S.tab === "entry") $("v-entry").innerHTML = entryViewHTML();
 }
 
 // ---------------- 表示 ----------------
@@ -431,7 +470,6 @@ function renderStats() {
       <div class="tile"><div class="lbl">最近100問の正答率</div><div class="big">${r.length ? pct(rOk, r.length) : "–"}<small>%</small></div><div class="sm">直近 ${r.length} 問中 ${rOk} 問</div></div>
       <div class="tile"><div class="lbl">解いた問題</div><div class="big">${solved}<small> / ${S.posts.length}</small></div><div class="sm">まちがえたまま ${wrong} 問</div></div>
     </div>
-    ${rankingHTML()}
     <h2>最近100問の記録</h2>
     <div class="dots" aria-label="最近100問の正解と不正解">${dots}</div>
     <div class="legend">古い順に左上から。緑が正解、赤が不正解。</div>
@@ -456,13 +494,13 @@ function renderPostForm() {
 
 function renderTabs() {
   for (const b of document.querySelectorAll(".tab")) b.classList.toggle("on", b.dataset.tab === S.tab);
-  $("v-feed").hidden = S.tab !== "feed";
-  $("v-stats").hidden = S.tab !== "stats";
-  $("v-post").hidden = S.tab !== "post";
-  if (S.tab === "stats") { renderStats(); loadRanking(); }
+  for (const v of ["feed", "stats", "rank", "entry", "post"]) $("v-" + v).hidden = S.tab !== v;
+  if (S.tab === "stats") renderStats();
+  if (S.tab === "rank" || S.tab === "entry") renderRank();
+  if (S.tab === "rank") loadRanking();
 }
 
-function renderAll() { renderMini(); renderNotice(); renderFeed(); renderPostForm(); if (S.tab === "stats") renderStats(); }
+function renderAll() { renderMini(); renderNotice(); renderFeed(); renderPostForm(); if (S.tab === "stats") renderStats(); renderRank(); }
 
 // ---------------- イベント ----------------
 document.addEventListener("click", e => {
@@ -478,15 +516,16 @@ document.addEventListener("click", e => {
   }
   if (t.id === "seed") { seedSamples(t); return; }
   if (t.id === "rank-reload") { loadRanking(true); return; }
-  if (t.id === "rank-rename") { S.lbEdit = true; S.lbDraft = S.lb ? S.lb.name : ""; renderStats(); return; }
+  if (t.id === "rank-rename") { S.lbEdit = true; S.lbDraft = S.lb ? S.lb.name : ""; renderRank(); return; }
+  if (t.id === "go-target") { S.tab = "feed"; S.filter = "ランキング対象"; renderTabs(); renderFeed(); window.scrollTo(0, 0); return; }
   if (t.id === "rank-join") {
     const name = ($("rank-name").value || "").trim();
-    if (!name) { S.lbMsg = "名前を入力してください。"; renderStats(); return; }
+    if (!name) { S.lbMsg = "名前を入力してください。"; renderRank(); return; }
     t.disabled = true; joinRanking(name); return;
   }
   if (t.id === "rank-leave" || t.dataset.rankdel) {
     const uid = t.dataset.rankdel || S.uid;
-    if (S.confirmRank !== uid) { S.confirmRank = uid; renderStats(); return; }
+    if (S.confirmRank !== uid) { S.confirmRank = uid; renderRank(); return; }
     removeRanking(uid); return;
   }
   if (t.id === "reload") { location.reload(); return; }   // アプリ全体を最新にする（問題の追加もすぐ反映）
