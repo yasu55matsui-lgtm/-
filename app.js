@@ -80,6 +80,7 @@ async function initShared() {
 
   const { doc, getDoc } = fsM;
   try { S.isTeacher = (await getDoc(doc(db, "teachers", S.uid))).exists(); } catch (e) { S.isTeacher = false; }
+  try { const lb = await getDoc(doc(db, "leaderboard", S.uid)); S.lb = lb.exists() ? lb.data() : null; } catch (e) { S.lb = null; }
   try {
     const st = await getDoc(doc(db, "stats", S.uid));
     if (st.exists()) S.my = { ...emptyStats(), ...st.data() };
@@ -155,8 +156,11 @@ function answer(pid, n) {
     const b = writeBatch(S.fb.db);
     b.set(doc(S.fb.db, "answers", pid + "_" + S.uid), { uid: S.uid, postId: pid, choice: n });
     b.update(doc(S.fb.db, "posts", pid), { ["counts." + n]: increment(1), "counts.total": increment(1) });
+    // ランキング参加中なら、この問題の最初の回答として成績を1問ぶん増やす（ルールで正誤を確かめる）
+    const lb = S.lb;
+    if (lb) b.update(doc(S.fb.db, "leaderboard", S.uid), { answered: increment(1), correct: increment(ok ? 1 : 0), last: pid, at: S.fb.fs.serverTimestamp() });
     // すでに回答済み（記録をリセットした等）のときは拒否されるだけ。どちらでも最新の割合を読み直す
-    b.commit().catch(() => {}).then(() => refreshPost(pid));
+    b.commit().then(() => { if (lb) { lb.answered++; if (ok) lb.correct++; S.rankAt = 0; } }, () => {}).then(() => refreshPost(pid));
   } else if (S.mode === "shared") {
     refreshPost(pid);
   }
@@ -197,6 +201,64 @@ async function seedSamples(btn) {
     }
   } catch (e) { S.error = "登録できませんでした（" + (e.code || "error") + "）。"; }
   await loadPosts();
+}
+
+// ---------------- ランキング ----------------
+const RANK_MIN = 10;   // ランキングに載る最低の回答数
+async function loadRanking(force) {
+  if (S.mode !== "shared" || S.rankLoading) return;
+  if (!force && S.rank && Date.now() - (S.rankAt || 0) < 60e3) return;
+  S.rankLoading = true;
+  const { collection, query, where, getDocs } = S.fb.fs;
+  try {
+    const snap = await getDocs(query(collection(S.fb.db, "leaderboard"), where("answered", ">=", RANK_MIN)));
+    S.rank = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((x, y) => y.correct / y.answered - x.correct / x.answered || y.correct - x.correct || y.answered - x.answered);
+    S.rankAt = Date.now(); S.rankErr = "";
+  } catch (e) { S.rankErr = "ランキングを読み込めませんでした（" + (e.code || "error") + "）。"; }
+  S.rankLoading = false;
+  if (S.tab === "stats") renderStats();
+}
+
+async function joinRanking(name) {
+  const { doc, setDoc, updateDoc, serverTimestamp } = S.fb.fs;
+  const ref = doc(S.fb.db, "leaderboard", S.uid);
+  try {
+    if (S.lb) { await updateDoc(ref, { name, at: serverTimestamp() }); S.lb.name = name; }
+    else { await setDoc(ref, { name, answered: 0, correct: 0, at: serverTimestamp() }); S.lb = { name, answered: 0, correct: 0 }; }
+    S.lbMsg = ""; S.lbEdit = false; S.lbDraft = undefined;
+  } catch (e) { S.lbMsg = "登録できませんでした（" + (e.code || "error") + "）。先生に Firebase のルールの更新を確認してもらってください。"; }
+  S.rankAt = 0; renderStats(); loadRanking(true);
+}
+
+async function removeRanking(uid) {
+  const { doc, deleteDoc } = S.fb.fs;
+  try { await deleteDoc(doc(S.fb.db, "leaderboard", uid)); if (uid === S.uid) S.lb = null; } catch (e) { S.lbMsg = "削除できませんでした。"; }
+  S.confirmRank = null; S.rankAt = 0; renderStats(); loadRanking(true);
+}
+
+function rankingHTML() {
+  if (S.mode !== "shared") return `<h2>ランキング</h2><div class="hint">ランキングは共有機能（Firebase）を設定すると使えます。</div>`;
+  const rows = (S.rank || []).slice(0, 10);
+  const me = S.lb;
+  const table = S.rankErr ? `<div class="msg err">${esc(S.rankErr)}</div>`
+    : !S.rank ? `<div class="hint">読み込んでいます…</div>`
+    : !rows.length ? `<div class="hint">まだランキングに載っている人はいません（${RANK_MIN}問以上答えると載ります）。</div>`
+    : `<ol class="rank">${rows.map((x, i) => {
+        const prev = rows[i - 1], same = prev && prev.correct * x.answered === x.correct * prev.answered && prev.correct === x.correct;
+        x.place = same ? prev.place : i + 1;
+        const del = S.isTeacher ? `<button class="link danger" data-rankdel="${esc(x.id)}">${S.confirmRank === x.id ? "本当に外す" : "外す"}</button>` : "";
+        return `<li class="${x.id === S.uid ? "me" : ""}"><span class="pl pl${x.place}">${x.place}</span><span class="nm">${esc(x.name)}${x.id === S.uid ? '<span class="tag">あなた</span>' : ""}</span>
+          <span class="rt">${(x.correct / x.answered * 100).toFixed(1)}%</span><span class="ct">${x.correct}/${x.answered}問</span>${del}</li>`;
+      }).join("")}</ol>`;
+  const join = me && !S.lbEdit
+    ? `<div class="hint">「${esc(me.name)}」で参加中：${me.correct}/${me.answered}問正解${me.answered < RANK_MIN ? `（あと${RANK_MIN - me.answered}問でランキングに載ります）` : ""}
+        <br><button class="link" id="rank-rename">名前を変える</button>　<button class="link danger" id="rank-leave">${S.confirmRank === S.uid ? "本当に参加をやめる（成績も消えます）" : "参加をやめる"}</button></div>`
+    : `<div class="joinrow"><input type="text" id="rank-name" maxlength="20" placeholder="ランキングに表示する名前" value="${esc(S.lbDraft ?? (me ? me.name : store.get(LOCAL_NAME) || ""))}">
+        <button class="primary" id="rank-join">${me ? "名前を変える" : "参加する"}</button></div>
+       <div class="hint">本名・クラス・出席番号は使わないでください。参加すると、名前と成績が全員に表示されます。参加したあとに<b>初めて解いた問題</b>の、<b>1回目の答え</b>で集計します。</div>`;
+  return `<h2>ランキング <span class="hint">（${RANK_MIN}問以上答えた人のトップ10・正答率順）</span> <button class="link" id="rank-reload">↻</button></h2>
+    ${table}${S.lbMsg ? `<div class="msg err">${esc(S.lbMsg)}</div>` : ""}${join}`;
 }
 
 // ---------------- 表示 ----------------
@@ -359,6 +421,7 @@ function renderStats() {
       <div class="tile"><div class="lbl">最近100問の正答率</div><div class="big">${r.length ? pct(rOk, r.length) : "–"}<small>%</small></div><div class="sm">直近 ${r.length} 問中 ${rOk} 問</div></div>
       <div class="tile"><div class="lbl">解いた問題</div><div class="big">${solved}<small> / ${S.posts.length}</small></div><div class="sm">まちがえたまま ${wrong} 問</div></div>
     </div>
+    ${rankingHTML()}
     <h2>最近100問の記録</h2>
     <div class="dots" aria-label="最近100問の正解と不正解">${dots}</div>
     <div class="legend">古い順に左上から。緑が正解、赤が不正解。</div>
@@ -386,7 +449,7 @@ function renderTabs() {
   $("v-feed").hidden = S.tab !== "feed";
   $("v-stats").hidden = S.tab !== "stats";
   $("v-post").hidden = S.tab !== "post";
-  if (S.tab === "stats") renderStats();
+  if (S.tab === "stats") { renderStats(); loadRanking(); }
 }
 
 function renderAll() { renderMini(); renderNotice(); renderFeed(); renderPostForm(); if (S.tab === "stats") renderStats(); }
@@ -404,6 +467,18 @@ document.addEventListener("click", e => {
     S.confirmDel = null; deletePost(pid); return;
   }
   if (t.id === "seed") { seedSamples(t); return; }
+  if (t.id === "rank-reload") { loadRanking(true); return; }
+  if (t.id === "rank-rename") { S.lbEdit = true; S.lbDraft = S.lb ? S.lb.name : ""; renderStats(); return; }
+  if (t.id === "rank-join") {
+    const name = ($("rank-name").value || "").trim();
+    if (!name) { S.lbMsg = "名前を入力してください。"; renderStats(); return; }
+    t.disabled = true; joinRanking(name); return;
+  }
+  if (t.id === "rank-leave" || t.dataset.rankdel) {
+    const uid = t.dataset.rankdel || S.uid;
+    if (S.confirmRank !== uid) { S.confirmRank = uid; renderStats(); return; }
+    removeRanking(uid); return;
+  }
   if (t.id === "reload") { location.reload(); return; }   // アプリ全体を最新にする（問題の追加もすぐ反映）
   if (t.id === "copyid") {
     navigator.clipboard?.writeText(S.uid).then(() => { t.textContent = "コピーしました"; }, () => {
@@ -437,6 +512,8 @@ function renderPreview() {
 let previewTimer = null;
 $("pform").addEventListener("input", () => { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 250); });
 $("pform").addEventListener("change", renderPreview);
+
+document.addEventListener("input", e => { if (e.target.id === "rank-name") S.lbDraft = e.target.value; });
 
 document.addEventListener("focusin", e => { if (e.target.matches("#pform input[type=text], #pform textarea")) S.lastField = e.target; });
 $("symbols").innerHTML = SYMBOLS.map(([label, s]) => `<button type="button" data-sym="${esc(s)}">${esc(label)}</button>`).join("");

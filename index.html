@@ -126,6 +126,19 @@
   .idbox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
   .idbox code { font-size: 13px; background: var(--box); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
   .seed { margin-top: 12px; }
+  .rank { list-style: none; margin: 0 0 10px; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .rank li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .rank li:first-child { border-top: 0; }
+  .rank li.me { background: var(--box); }
+  .rank li .link { grid-column: 2 / -1; justify-self: end; padding: 0; }
+  .rank .pl { width: 1.9em; height: 1.9em; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--chip); }
+  .rank .pl1 { background: #f2c230; color: #3a2c00; } .rank .pl2 { background: #c9ced6; color: #222; } .rank .pl3 { background: #d99a5b; color: #2b1600; }
+  .rank .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank .rt { font-weight: 700; font-size: 17px; }
+  .rank .ct { color: var(--sub); font-size: 13px; }
+  .rank .tag, .tag { font-weight: 500; font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 2px; }
+  .joinrow { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  .joinrow input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
   .hint code { background: var(--box); padding: 1px 4px; border-radius: 4px; font-size: 12px; }
   .preview { border: 1px dashed var(--line); border-radius: 8px; padding: 12px 14px; min-height: 48px; font-size: 15px; overflow-x: auto; }
   .preview .pc { border: 1px solid var(--line); padding: 6px 10px; margin: 6px 0; }
