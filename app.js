@@ -105,6 +105,8 @@ function toPost(d) {
   if (src && src.answer === p.answer && Array.isArray(src.choices) && src.choices.length === 4) {
     Object.assign(p, { category: src.category, question: src.question, choices: src.choices, explanation: src.explanation || "" });
   }
+  // 先生が付け直した単元（questions.js の CATEGORY_FIXES）
+  if (typeof CATEGORY_FIXES !== "undefined" && CATEGORY_FIXES[p.id]) p.category = CATEGORY_FIXES[p.id];
   return p;
 }
 
@@ -228,15 +230,27 @@ function renderNotice() {
   $("notice").innerHTML = html;
 }
 
+// 単元の並び順（教科書の順。一覧にない単元は後ろ）
+const UNIT_LIST = typeof UNITS !== "undefined" ? UNITS.flatMap(([, us]) => us) : [];
+const unitRank = c => { const i = UNIT_LIST.indexOf(c); return i < 0 ? 999 : i; };
+// 以前の単元名（成績の集計用）
+const OLD_UNIT_NAMES = { "微分・積分": "微分・積分（数学Ⅱ）" };
+
 function renderChips() {
-  const cats = [...new Set(S.posts.map(q => q.category).filter(Boolean))];
+  const cats = [...new Set(S.posts.map(q => q.category).filter(Boolean))].sort((a, b) => unitRank(a) - unitRank(b));
   const names = ["すべて", ...cats, "まちがえた問題", "まだ解いていない"];
   if (S.mode === "shared") names.push("先生の問題", "みんなの投稿");
   if (!names.includes(S.filter)) S.filter = "すべて";
   $("chips").innerHTML = (S.mode === "shared" ? `<button class="chip" id="reload" ${S.loading ? "disabled" : ""}>${S.loading ? "読み込み中…" : "↻ 更新"}</button>` : "") +
     names.map(n => `<button class="chip ${n === S.filter ? "on" : ""}" data-f="${esc(n)}">${esc(n)}</button>`).join("");
-  $("cat-list").innerHTML = cats.map(c => `<option value="${esc(c)}">`).join("");
 }
+
+function renderUnitSelect() {
+  const groups = (typeof UNITS !== "undefined" ? UNITS : []).map(([course, us]) =>
+    `<optgroup label="${esc(course)}">${us.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join("")}</optgroup>`).join("");
+  $("f-unit").innerHTML = `<option value="">選んでください</option>${groups}<option value="__other">その他（自分で入力）</option>`;
+}
+$("f-unit") && $("f-unit").addEventListener("change", () => { $("f-cat").hidden = $("f-unit").value !== "__other"; });
 
 function visible() {
   return S.posts.filter(q => {
@@ -333,7 +347,12 @@ function renderStats() {
   const wrong = S.posts.filter(q => m.last[q.id] && m.last[q.id] !== q.answer).length;
   const rOk = [...r].filter(x => x === "1").length;
   const dots = Array.from({ length: 100 }, (_, i) => `<span class="dot ${r[i] === "1" ? "o" : r[i] === "0" ? "x" : ""}"></span>`).join("");
-  const cats = Object.entries(m.byCat).sort((a, b) => b[1].t - a[1].t);
+  const merged = {};
+  for (const [k, v] of Object.entries(m.byCat)) {
+    const name = OLD_UNIT_NAMES[k] || k, x = merged[name] || (merged[name] = { t: 0, c: 0 });
+    x.t += v.t; x.c += v.c;
+  }
+  const cats = Object.entries(merged).sort((a, b) => unitRank(a[0]) - unitRank(b[0]) || b[1].t - a[1].t);
   $("v-stats").innerHTML = `
     <div class="tiles">
       <div class="tile"><div class="lbl">通算の正答率</div><div class="big">${m.total ? pct(m.correct, m.total) : "–"}<small>%</small></div><div class="sm">${m.correct} / ${m.total} 回正解</div></div>
@@ -430,6 +449,7 @@ $("pform").addEventListener("submit", async e => {
   const ans = Number((document.querySelector('input[name="f-ans"]:checked') || {}).value || 0);
   let err = "";
   if (!v("f-name")) err = "ニックネームを入力してください。";
+  else if (!$("f-unit").value || ($("f-unit").value === "__other" && !v("f-cat"))) err = "単元を選んでください。";
   else if (!v("f-q")) err = "問題文を入力してください。";
   else if (choices.some(c => !c)) err = "選択肢を4つすべて入力してください。";
   else if (new Set(choices).size < 4) err = "同じ選択肢が重複しています。";
@@ -439,7 +459,7 @@ $("pform").addEventListener("submit", async e => {
   store.set(LOCAL_NAME, v("f-name"));
   $("f-submit").disabled = true;
   try {
-    await createPost({ authorName: v("f-name"), category: v("f-cat") || "その他", question: v("f-q"),
+    await createPost({ authorName: v("f-name"), category: unitValue(), question: v("f-q"),
       choices, answer: ans, explanation: v("f-exp") });
     for (const id of ["f-q", "f-c1", "f-c2", "f-c3", "f-c4", "f-exp"]) $(id).value = "";
     document.querySelectorAll('input[name="f-ans"]').forEach(r => { r.checked = false; });
@@ -451,10 +471,16 @@ $("pform").addEventListener("submit", async e => {
   } finally { renderPostForm(); }
 });
 
+function unitValue() {
+  const u = $("f-unit").value;
+  return u === "__other" ? ($("f-cat").value.trim() || "その他") : u;
+}
+
 // ---------------- 起動 ----------------
 (async () => {
   if (!store.get("math-quiz-seed")) store.set("math-quiz-seed", Math.random().toString(36).slice(2));
   S.my = loadLocalStats();
+  renderUnitSelect();
   renderAll();
   renderPreview();
   if (firebaseConfig) {
